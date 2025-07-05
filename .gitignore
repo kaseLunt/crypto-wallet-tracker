@@ -67,3 +67,34 @@ pnpm-debug.log*
 
 # TypeScript
 *.tsbuildinfo
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Docker data
+docker/data/
+
+# Environment files
+.env.*
+!.env.example
+
+# Database
+*.db
+*.sqlite
+
+# Logs
+*.log
+
+# OS files
+Thumbs.db
+
+# IDE
+.idea/
+.vscode/
+# Turbo
+.turbo/
+
+# Prisma
+# Keep migrations but not the database
+prisma/migrations/*/migration_log.json
