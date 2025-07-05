@@ -1,0 +1,62 @@
+type Transaction {
+  id: ID!
+  hash: String!
+  chain: Chain!
+  blockNumber: BigInt!
+  timestamp: DateTime!
+  from: String!
+  to: String!
+  value: String!
+  gasUsed: String!
+  gasPrice: String!
+  gasFeeUSD: Float!
+  status: TransactionStatus!
+  type: TransactionType!
+
+  # Related data
+  token: Token
+  tokenTransfers: [TokenTransfer!]!
+  nftTransfers: [NFTTransfer!]!
+}
+
+type TokenTransfer {
+  token: Token!
+  from: String!
+  to: String!
+  amount: String!
+  amountFormatted: Float!
+  valueUSD: Float!
+}
+
+type NFTTransfer {
+  collection: NFTCollection!
+  tokenId: String!
+  from: String!
+  to: String!
+}
+
+type TransactionConnection {
+  edges: [TransactionEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type TransactionEdge {
+  node: Transaction!
+  cursor: String!
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+}
+
+enum TransactionType {
+  TRANSFER
+  SWAP
+  MINT
+  BURN
+  CONTRACT_CALL
+  APPROVAL
+}

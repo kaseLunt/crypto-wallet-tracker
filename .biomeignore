@@ -1,0 +1,44 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Generated files
+**/generated/**
+*.generated.ts
+*.generated.js
+
+# Coverage
+coverage/
+.nyc_output/
+
+# Cache
+.turbo/
+.cache/
+
+# Docker
+docker/data/
+
+# Environment
+.env*
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Lock files
+pnpm-lock.yaml
+package-lock.json
+yarn.lock

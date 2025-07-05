@@ -1,0 +1,46 @@
+{
+  "name": "crypto-portfolio-tracker",
+  "private": true,
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "clean": "turbo run clean && rm -rf node_modules",
+    "clean:all": "pnpm clean && pnpm -r exec rm -rf node_modules",
+    "docker:start": "./docker/scripts/start.sh",
+    "docker:stop": "./docker/scripts/stop.sh",
+    "docker:reset": "./docker/scripts/reset.sh",
+    "docker:logs": "./docker/scripts/logs.sh",
+    "docker:psql": "docker exec -it crypto-tracker-timescaledb psql -U postgres -d crypto_tracker",
+    "docker:redis-cli": "docker exec -it crypto-tracker-redis redis-cli -a redis_dev_password",
+    "type-check": "turbo run type-check",
+    "type-check:watch": "turbo run type-check:watch",
+    "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
+    "format": "turbo run format",
+    "format:check": "turbo run format:check",
+    "check": "pnpm run type-check && pnpm run lint && pnpm run format:check",
+    "check:fix": "pnpm run type-check && pnpm run lint:fix && pnpm run format"
+  },
+  "pnpm": {
+    "overrides": {
+      "@types/node": "^22.5.5",
+      "typescript": "5.8.2"
+    }
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@tailwindcss/postcss": "^4.1.11",
+    "autoprefixer": "^10.4.21",
+    "postcss": "^8.5.6",
+    "prettier": "^3.6.0",
+    "tailwindcss": "^4.1.11",
+    "turbo": "^2.5.4",
+    "typescript": "5.8.2"
+  },
+  "packageManager": "pnpm@10.12.4",
+  "engines": {
+    "node": ">=22.0.0",
+    "pnpm": ">=10.0.0"
+  }
+}

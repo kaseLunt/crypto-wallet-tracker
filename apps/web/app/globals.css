@@ -1,0 +1,104 @@
+@import "tailwindcss";
+
+/* Custom theme configuration */
+@theme {
+  /* Font */
+  --font-sans: "Inter", system-ui, -apple-system, sans-serif;
+
+  /* Custom colors for crypto theme */
+  --color-crypto-blue: oklch(0.5 0.2 250);
+  --color-crypto-purple: oklch(0.45 0.25 300);
+  --color-crypto-green: oklch(0.6 0.2 150);
+  --color-crypto-orange: oklch(0.65 0.2 50);
+
+  /* --- FIXES ARE HERE --- */
+  /* 1. Define base colors for light/dark mode */
+  --color-background: oklch(0.98 0 0);
+  --color-foreground: oklch(0.15 0 0);
+
+  /* 2. Define the missing border color */
+  --color-border: oklch(0.9 0.02 250);
+  /* --- END OF FIXES --- */
+
+  /* Custom spacing if needed */
+  --spacing-18: 4.5rem;
+  --spacing-22: 5.5rem;
+
+  /* Custom breakpoints */
+  --breakpoint-3xl: 1920px;
+
+  /* Custom animations */
+  --ease-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+}
+
+/* Base styles */
+@layer base {
+  :root {
+    /* Set the CSS variables from the theme */
+    --background: var(--color-background);
+    --foreground: var(--color-foreground);
+
+    /* Dark mode */
+    &.dark {
+      --background: oklch(0.15 0 0);
+      --foreground: oklch(0.98 0 0);
+      --border: oklch(0.2 0.02 250); /* Optional: darker border for dark mode */
+    }
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  /* Crypto-specific utilities */
+  .gradient-crypto {
+    /* Using the theme colors directly */
+    @apply bg-gradient-to-r from-crypto-blue via-crypto-purple to-crypto-green;
+  }
+
+  .glow-crypto {
+    box-shadow: 0 0 20px color-mix(in oklch, var(--color-crypto-blue) 20%, transparent), 0 0 40px
+      color-mix(in oklch, var(--color-crypto-purple) 10%, transparent);
+  }
+
+  /* Custom scrollbar */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: oklch(0.5 0 0 / 0.2) transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-black/20 dark:bg-white/20 rounded-full;
+  }
+}
+
+/* Component styles */
+@layer components {
+  .btn-primary {
+    @apply px-6 py-3 bg-crypto-blue text-white rounded-lg hover:bg-crypto-purple transition-colors;
+  }
+
+  .card {
+    @apply p-6 border border-border rounded-xl backdrop-blur-sm;
+  }
+}

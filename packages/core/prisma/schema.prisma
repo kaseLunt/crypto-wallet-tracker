@@ -1,0 +1,377 @@
+// Prisma schema for Crypto Portfolio Tracker
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema", "postgresqlExtensions", "views", "strictUndefinedChecks"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  directUrl  = env("DIRECT_DATABASE_URL")
+  schemas    = ["crypto", "analytics", "public"]
+  // Temporarily comment out extensions
+  // extensions = [uuid_ossp(map: "uuid-ossp"), pgcrypto, timescaledb]
+}
+
+// ==================== ENUMS ====================
+
+enum Chain {
+  ETHEREUM
+  POLYGON
+  ARBITRUM
+  BASE
+  OPTIMISM
+  BSC
+  AVALANCHE
+
+  @@schema("crypto")
+}
+
+enum TransactionStatus {
+  PENDING
+  CONFIRMED
+  FAILED
+
+  @@schema("crypto")
+}
+
+enum TransactionType {
+  TRANSFER
+  SWAP
+  MINT
+  BURN
+  CONTRACT_CALL
+  APPROVAL
+
+  @@schema("crypto")
+}
+
+enum DeFiProtocol {
+  AAVE
+  MORPHO
+  PENDLE
+  UNISWAP
+  CURVE
+  COMPOUND
+
+  @@schema("crypto")
+}
+
+enum DeFiPositionType {
+  LENDING
+  BORROWING
+  LIQUIDITY_POOL
+  STAKING
+  YIELD_FARMING
+
+  @@schema("crypto")
+}
+
+enum PriceSource {
+  COINGECKO
+  CHAINLINK
+  UNISWAP
+  AGGREGATE
+
+  @@schema("analytics")
+}
+
+// ==================== CRYPTO SCHEMA MODELS ====================
+
+model Wallet {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  address       String    @db.VarChar(255)
+  chain         Chain
+  label         String?   @db.VarChar(255)
+  createdAt     DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime  @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastSyncedAt  DateTime? @map("last_synced_at") @db.Timestamptz(6)
+  isActive      Boolean   @default(true) @map("is_active")
+  metadata      Json      @default("{}") @db.JsonB
+
+  // Relations
+  transactions    Transaction[]
+  walletBalances  WalletBalance[]
+  walletSnapshots WalletSnapshot[]
+  defiPositions   DeFiPosition[]
+
+  // Indexes
+  @@unique([address, chain])
+  @@index([address])
+  @@index([chain])
+  @@index([isActive])
+  @@map("wallets")
+  @@schema("crypto")
+}
+
+model Token {
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  symbol          String   @db.VarChar(50)
+  name            String   @db.VarChar(255)
+  contractAddress String?  @map("contract_address") @db.VarChar(255)
+  chain           Chain
+  decimals        Int      @default(18)
+  logoUrl         String?  @map("logo_url") @db.Text
+  coingeckoId     String?  @map("coingecko_id") @db.VarChar(255)
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  metadata        Json     @default("{}") @db.JsonB
+
+  // Relations
+  transactions       Transaction[]
+  tokenPrices        TokenPrice[]
+  walletBalances     WalletBalance[]
+  defiTokenAmounts   DeFiTokenAmount[]
+  tokenTransfers     TokenTransfer[]
+  nftCollections     NFTCollection[]
+
+  // Indexes
+  @@unique([contractAddress, chain])
+  @@index([symbol])
+  @@index([chain])
+  @@index([coingeckoId])
+  @@map("tokens")
+  @@schema("crypto")
+}
+
+model Transaction {
+  time          DateTime          @map("time") @db.Timestamptz(6)
+  walletId      String            @map("wallet_id") @db.Uuid
+  hash          String            @db.VarChar(255)
+  chain         Chain
+  fromAddress   String            @map("from_address") @db.VarChar(255)
+  toAddress     String            @map("to_address") @db.VarChar(255)
+  tokenId       String?           @map("token_id") @db.Uuid
+  amount        Decimal            @db.Decimal(78, 0)
+  gasFee        Decimal?           @map("gas_fee") @db.Decimal(78, 0)
+  blockNumber   BigInt            @map("block_number")
+  status        TransactionStatus @default(CONFIRMED)
+  type          TransactionType?
+  metadata      Json              @default("{}") @db.JsonB
+
+  // Relations
+  wallet         Wallet          @relation(fields: [walletId], references: [id])
+  token          Token?          @relation(fields: [tokenId], references: [id])
+  tokenTransfers TokenTransfer[]
+  nftTransfers   NFTTransfer[]
+
+  // Composite primary key for hypertable
+  @@id([time, walletId, hash])
+  @@unique([hash, chain])
+  @@index([walletId, time(sort: Desc)])
+  @@index([blockNumber])
+  @@map("transactions")
+  @@schema("crypto")
+}
+
+model WalletBalance {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletId      String   @map("wallet_id") @db.Uuid
+  tokenId       String   @map("token_id") @db.Uuid
+  balance       Decimal  @db.Decimal(78, 0)
+  balanceUsd    Decimal? @map("balance_usd") @db.Decimal(20, 2)
+  lastUpdatedAt DateTime @default(now()) @map("last_updated_at") @db.Timestamptz(6)
+
+  // Relations
+  wallet Wallet @relation(fields: [walletId], references: [id])
+  token  Token  @relation(fields: [tokenId], references: [id])
+
+  // Indexes
+  @@unique([walletId, tokenId])
+  @@index([walletId])
+  @@index([tokenId])
+  @@map("wallet_balances")
+  @@schema("crypto")
+}
+
+model TokenTransfer {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionTime  DateTime @map("transaction_time") @db.Timestamptz(6)
+  transactionWalletId String @map("transaction_wallet_id") @db.Uuid
+  transactionHash  String   @map("transaction_hash") @db.VarChar(255)
+  tokenId          String   @map("token_id") @db.Uuid
+  fromAddress      String   @map("from_address") @db.VarChar(255)
+  toAddress        String   @map("to_address") @db.VarChar(255)
+  amount           Decimal   @db.Decimal(78, 0)
+  amountUsd        Decimal? @map("amount_usd") @db.Decimal(20, 2)
+
+  // Relations
+  transaction Transaction @relation(fields: [transactionTime, transactionWalletId, transactionHash], references: [time, walletId, hash])
+  token       Token       @relation(fields: [tokenId], references: [id])
+
+  // Indexes
+  @@index([transactionTime, transactionWalletId, transactionHash])
+  @@index([tokenId])
+  @@map("token_transfers")
+  @@schema("crypto")
+}
+
+// ==================== NFT MODELS ====================
+
+model NFTCollection {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  address   String   @db.VarChar(255)
+  name      String   @db.VarChar(255)
+  symbol    String?  @db.VarChar(50)
+  chain     Chain
+  tokenId   String?  @map("token_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  metadata  Json     @default("{}") @db.JsonB
+
+  // Relations
+  token        Token?        @relation(fields: [tokenId], references: [id])
+  nfts         NFT[]
+  nftTransfers NFTTransfer[]
+
+  // Indexes
+  @@unique([address, chain])
+  @@map("nft_collections")
+  @@schema("crypto")
+}
+
+model NFT {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  collectionId String   @map("collection_id") @db.Uuid
+  tokenId      String   @map("token_id") @db.VarChar(255)
+  name         String?  @db.VarChar(255)
+  imageUrl     String?  @map("image_url") @db.Text
+  traits       Json?    @db.JsonB
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  collection NFTCollection @relation(fields: [collectionId], references: [id])
+
+  // Indexes
+  @@unique([collectionId, tokenId])
+  @@map("nfts")
+  @@schema("crypto")
+}
+
+model NFTTransfer {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionTime  DateTime @map("transaction_time") @db.Timestamptz(6)
+  transactionWalletId String @map("transaction_wallet_id") @db.Uuid
+  transactionHash  String   @map("transaction_hash") @db.VarChar(255)
+  collectionId     String   @map("collection_id") @db.Uuid
+  tokenId          String   @map("token_id") @db.VarChar(255)
+  fromAddress      String   @map("from_address") @db.VarChar(255)
+  toAddress        String   @map("to_address") @db.VarChar(255)
+
+  // Relations
+  transaction Transaction   @relation(fields: [transactionTime, transactionWalletId, transactionHash], references: [time, walletId, hash])
+  collection  NFTCollection @relation(fields: [collectionId], references: [id])
+
+  // Indexes
+  @@index([transactionTime, transactionWalletId, transactionHash])
+  @@index([collectionId])
+  @@map("nft_transfers")
+  @@schema("crypto")
+}
+
+// ==================== DEFI MODELS ====================
+
+model DeFiPosition {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  walletId      String           @map("wallet_id") @db.Uuid
+  protocol      DeFiProtocol
+  type          DeFiPositionType
+  healthFactor  Decimal?         @map("health_factor") @db.Decimal(10, 4)
+  apy           Decimal?         @db.Decimal(10, 4)
+  createdAt     DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  lastSyncedAt  DateTime?        @map("last_synced_at") @db.Timestamptz(6)
+  metadata      Json             @default("{}") @db.JsonB
+
+  // Relations
+  wallet       Wallet            @relation(fields: [walletId], references: [id])
+  tokenAmounts DeFiTokenAmount[]
+
+  // Indexes
+  @@index([walletId])
+  @@index([protocol])
+  @@map("defi_positions")
+  @@schema("crypto")
+}
+
+model DeFiTokenAmount {
+  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  positionId String               @map("position_id") @db.Uuid
+  tokenId    String               @map("token_id") @db.Uuid
+  type       DeFiTokenAmountType
+  amount     Decimal               @db.Decimal(78, 0)
+  amountUsd  Decimal?             @map("amount_usd") @db.Decimal(20, 2)
+
+  // Relations
+  position DeFiPosition @relation(fields: [positionId], references: [id])
+  token    Token        @relation(fields: [tokenId], references: [id])
+
+  // Indexes
+  @@unique([positionId, tokenId, type])
+  @@map("defi_token_amounts")
+  @@schema("crypto")
+}
+
+enum DeFiTokenAmountType {
+  SUPPLIED
+  BORROWED
+  REWARD
+  LIQUIDITY
+
+  @@schema("crypto")
+}
+
+// ==================== ANALYTICS SCHEMA MODELS ====================
+
+model TokenPrice {
+  time             DateTime     @map("time") @db.Timestamptz(6)
+  tokenId          String       @map("token_id") @db.Uuid
+  priceUsd         Decimal      @map("price_usd") @db.Decimal(20, 8)
+  priceBtc         Decimal?     @map("price_btc") @db.Decimal(20, 8)
+  priceEth         Decimal?     @map("price_eth") @db.Decimal(20, 8)
+  marketCapUsd     Decimal?     @map("market_cap_usd") @db.Decimal(20, 2)
+  volume24hUsd     Decimal?     @map("volume_24h_usd") @db.Decimal(20, 2)
+  priceChange24hPct Decimal?    @map("price_change_24h_pct") @db.Decimal(8, 4)
+  source           PriceSource  @default(COINGECKO)
+
+  // Relations
+  token Token @relation(fields: [tokenId], references: [id])
+
+  // Composite primary key for hypertable
+  @@id([time, tokenId])
+  @@index([tokenId, time(sort: Desc)])
+  @@map("token_prices")
+  @@schema("analytics")
+}
+
+model WalletSnapshot {
+  time          DateTime @map("time") @db.Timestamptz(6)
+  walletId      String   @map("wallet_id") @db.Uuid
+  totalValueUsd Decimal  @map("total_value_usd") @db.Decimal(20, 2)
+  tokenCount    Int      @map("token_count") @default(0)
+  metadata      Json     @default("{}") @db.JsonB
+
+  // Relations
+  wallet Wallet @relation(fields: [walletId], references: [id])
+
+  // Composite primary key for hypertable
+  @@id([time, walletId])
+  @@index([walletId, time(sort: Desc)])
+  @@map("wallet_snapshots")
+  @@schema("analytics")
+}
+
+// ==================== VIEWS (for continuous aggregates) ====================
+
+view HourlyTokenPrice {
+  hour         DateTime @map("hour") @db.Timestamptz(6)
+  tokenId      String   @map("token_id") @db.Uuid
+  avgPriceUsd  Decimal  @map("avg_price_usd") @db.Decimal(20, 8)
+  highPriceUsd Decimal  @map("high_price_usd") @db.Decimal(20, 8)
+  lowPriceUsd  Decimal  @map("low_price_usd") @db.Decimal(20, 8)
+  closePriceUsd Decimal @map("close_price_usd") @db.Decimal(20, 8)
+  avgVolume24hUsd Decimal? @map("avg_volume_24h_usd") @db.Decimal(20, 2)
+
+  @@id([hour, tokenId])
+  @@map("hourly_token_prices")
+  @@schema("analytics")
+}

@@ -1,0 +1,64 @@
+# Scalar types
+scalar DateTime
+scalar BigInt
+scalar JSON
+
+# Root types
+type Query {
+  # Wallet queries
+  wallet(address: String!, chain: Chain!): Wallet
+  wallets(chains: [Chain!], limit: Int = 10, offset: Int = 0): WalletConnection!
+
+  # Portfolio queries
+  portfolio(walletAddresses: [String!]!): Portfolio!
+  portfolioHistory(
+    walletAddresses: [String!]!
+    from: DateTime!
+    to: DateTime!
+    interval: TimeInterval!
+  ): [PortfolioSnapshot!]!
+
+  # Token queries
+  token(id: ID!): Token
+  tokens(chain: Chain, search: String, limit: Int = 50): [Token!]!
+  tokenPrice(tokenId: ID!, currency: Currency = USD): TokenPrice
+  tokenPriceHistory(
+    tokenId: ID!
+    from: DateTime!
+    to: DateTime!
+    interval: TimeInterval!
+  ): [TokenPrice!]!
+
+  # Transaction queries
+  transactions(
+    walletAddress: String!
+    chain: Chain!
+    limit: Int = 50
+    offset: Int = 0
+  ): TransactionConnection!
+
+  # DeFi queries
+  defiPositions(walletAddress: String!): [DeFiPosition!]!
+}
+
+type Mutation {
+  # Wallet mutations
+  addWallet(input: AddWalletInput!): Wallet!
+  updateWallet(address: String!, chain: Chain!, input: UpdateWalletInput!): Wallet!
+  removeWallet(address: String!, chain: Chain!): Boolean!
+
+  # Sync mutations
+  syncWallet(address: String!, chain: Chain!): SyncResult!
+  syncAllWallets: BatchSyncResult!
+}
+
+type Subscription {
+  # Real-time price updates
+  priceUpdates(tokenIds: [ID!]!): TokenPrice!
+
+  # Wallet activity
+  walletActivity(address: String!, chain: Chain!): WalletEvent!
+
+  # Portfolio updates
+  portfolioValueChanged(walletAddresses: [String!]!): Portfolio!
+}

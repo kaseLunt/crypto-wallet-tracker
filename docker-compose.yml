@@ -1,0 +1,103 @@
+services:
+  # TimescaleDB - Time-series PostgreSQL 17
+  timescaledb:
+    image: timescale/timescaledb:latest-pg17
+    container_name: crypto-tracker-timescaledb
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: ${POSTGRES_DB:-crypto_tracker}
+      TS_TUNE_MAX_CONNS: 100
+      TS_TUNE_MAX_BG_WORKERS: 8
+    volumes:
+      - ./docker/data/timescaledb:/var/lib/postgresql/data
+      - ./docker/config/timescaledb/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-crypto_tracker}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - crypto-network
+
+  # Redis Stack - Caching + Time Series + JSON + Search
+  redis:
+    image: redis/redis-stack:latest
+    container_name: crypto-tracker-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"  # Redis
+      - "8001:8001"  # RedisInsight UI
+    environment:
+      REDIS_ARGS: >-
+        --requirepass ${REDIS_PASSWORD:-redis}
+        --maxmemory 512mb
+        --maxmemory-policy allkeys-lru
+        --appendonly yes
+        --appendfsync everysec
+    volumes:
+      - ./docker/data/redis:/data
+      - ./docker/config/redis/redis.conf:/redis-stack.conf:ro
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-redis}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - crypto-network
+
+  # NATS with JetStream - Event streaming
+  nats:
+    image: nats:2.10-alpine
+    container_name: crypto-tracker-nats
+    restart: unless-stopped
+    ports:
+      - "4222:4222"  # Client connections
+      - "8222:8222"  # HTTP monitoring
+      - "6222:6222"  # Cluster routing
+    command: [
+      "-c", "/etc/nats/nats-server.conf"  # Use config file only
+    ]
+    volumes:
+      - ./docker/data/nats:/data
+      - ./docker/config/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    networks:
+      - crypto-network
+
+  # pgAdmin - Database UI
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: crypto-tracker-pgadmin
+    restart: unless-stopped
+    ports:
+      - "5050:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@crypto-tracker.local}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+      PGADMIN_CONFIG_MASTER_PASSWORD_REQUIRED: 'False'
+    volumes:
+      - ./docker/data/pgadmin:/var/lib/pgadmin
+    depends_on:
+      timescaledb:
+        condition: service_healthy
+    networks:
+      - crypto-network
+    profiles:
+      - tools
+
+networks:
+  crypto-network:
+    driver: bridge
+    name: crypto-tracker-network

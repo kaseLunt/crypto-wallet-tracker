@@ -1,0 +1,54 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "tui",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build", "codegen"],
+      "inputs": ["$TURBO_DEFAULT$", ".env*"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"],
+      "env": ["NODE_ENV"]
+    },
+    "codegen": {
+      "inputs": ["src/schema/**/*.graphql", "codegen.yml"],
+      "outputs": ["src/generated/**"],
+      "cache": true
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true,
+      "env": ["NODE_ENV"]
+    },
+    "type-check": {
+      "dependsOn": ["^build"],
+      "cache": false
+    },
+    "type-check:watch": {
+      "cache": false,
+      "persistent": true
+    },
+    "lint": {
+      "inputs": ["$TURBO_DEFAULT$", "biome.json", ".biomeignore"],
+      "cache": true
+    },
+    "lint:fix": {
+      "inputs": ["$TURBO_DEFAULT$", "biome.json", ".biomeignore"],
+      "cache": false
+    },
+    "format": {
+      "inputs": ["$TURBO_DEFAULT$", "biome.json", ".biomeignore"],
+      "cache": false
+    },
+    "format:check": {
+      "inputs": ["$TURBO_DEFAULT$", "biome.json", ".biomeignore"],
+      "cache": true
+    },
+    "test": {
+      "dependsOn": ["build"],
+      "inputs": ["$TURBO_DEFAULT$", "tests/**"],
+      "env": ["NODE_ENV"]
+    },
+    "clean": {
+      "cache": false
+    }
+  }
+}

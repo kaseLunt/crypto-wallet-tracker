@@ -1,0 +1,35 @@
+type Token {
+  id: ID!
+  symbol: String!
+  name: String!
+  contractAddress: String
+  chain: Chain!
+  decimals: Int!
+  logoUrl: String
+  coingeckoId: String
+
+  # Price data
+  currentPrice: TokenPrice
+  priceChange24h: Float
+  marketCap: Float
+  volume24h: Float
+
+  # Historical data
+  priceHistory(from: DateTime!, to: DateTime!, interval: TimeInterval!): [TokenPrice!]!
+}
+
+type TokenPrice {
+  tokenId: ID!
+  priceUSD: Float!
+  priceBTC: Float
+  priceETH: Float
+  timestamp: DateTime!
+  source: PriceSource!
+}
+
+enum PriceSource {
+  COINGECKO
+  CHAINLINK
+  UNISWAP
+  AGGREGATE
+}

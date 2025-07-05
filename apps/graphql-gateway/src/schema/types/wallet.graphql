@@ -1,0 +1,55 @@
+type Wallet {
+  id: ID!
+  address: String!
+  chain: Chain!
+  label: String
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  lastSyncedAt: DateTime
+  isActive: Boolean!
+
+  # Computed fields
+  balance: WalletBalance!
+  transactions(limit: Int = 50, offset: Int = 0): TransactionConnection!
+  tokens: [TokenBalance!]!
+  totalValueUSD: Float!
+  nfts: [NFT!]!
+}
+
+type WalletBalance {
+  native: TokenBalance!
+  tokens: [TokenBalance!]!
+  totalValueUSD: Float!
+}
+
+type TokenBalance {
+  token: Token!
+  balance: String!
+  balanceFormatted: Float!
+  valueUSD: Float!
+  valueChange24h: Float!
+}
+
+type WalletConnection {
+  edges: [WalletEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type WalletEdge {
+  node: Wallet!
+  cursor: String!
+}
+
+input AddWalletInput {
+  address: String!
+  chain: Chain!
+  label: String
+}
+
+input UpdateWalletInput {
+  label: String
+  isActive: Boolean
+}
+
+union WalletEvent = Transaction | TokenTransfer | NFTTransfer

@@ -1,0 +1,46 @@
+type Portfolio {
+  wallets: [Wallet!]!
+  totalValueUSD: Float!
+  totalValueChange24h: Float!
+  totalValueChange24hPercent: Float!
+
+  # Breakdowns
+  chainBreakdown: [ChainBreakdown!]!
+  tokenBreakdown: [TokenBreakdown!]!
+
+  # Analytics
+  performanceMetrics: PerformanceMetrics!
+}
+
+type PortfolioSnapshot {
+  timestamp: DateTime!
+  totalValueUSD: Float!
+  walletSnapshots: [WalletSnapshot!]!
+}
+
+type WalletSnapshot {
+  walletId: ID!
+  valueUSD: Float!
+  tokenBalances: JSON!
+}
+
+type ChainBreakdown {
+  chain: Chain!
+  valueUSD: Float!
+  percentage: Float!
+}
+
+type TokenBreakdown {
+  token: Token!
+  totalBalance: String!
+  totalValueUSD: Float!
+  percentage: Float!
+  valueChange24h: Float!
+}
+
+type PerformanceMetrics {
+  totalReturn: Float!
+  totalReturnPercent: Float!
+  bestPerformer: TokenBreakdown
+  worstPerformer: TokenBreakdown
+}

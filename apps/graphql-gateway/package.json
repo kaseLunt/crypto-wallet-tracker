@@ -1,0 +1,38 @@
+{
+  "name": "@crypto-tracker/graphql-gateway",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "codegen": "graphql-codegen",
+    "codegen:watch": "graphql-codegen --watch",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "format:check": "biome format .",
+    "clean": "rm -rf dist node_modules"
+  },
+  "dependencies": {
+    "@graphql-tools/schema": "^10.0.2",
+    "@graphql-tools/utils": "^10.8.6",
+    "dataloader": "^2.2.2",
+    "glob": "^11.0.3",
+    "graphql": "^16.8.1",
+    "graphql-yoga": "^5.1.1",
+    "p-limit": "^5.0.0"
+  },
+  "devDependencies": {
+    "@graphql-codegen/cli": "^5.0.0",
+    "@graphql-codegen/typescript": "^4.0.1",
+    "@graphql-codegen/typescript-resolvers": "^4.0.1",
+    "@types/glob": "^9.0.0",
+    "@types/node": "^22.5.5",
+    "tsx": "^4.7.0",
+    "typescript": "5.8.2"
+  }
+}

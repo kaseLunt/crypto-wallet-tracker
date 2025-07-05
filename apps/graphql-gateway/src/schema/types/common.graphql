@@ -1,0 +1,67 @@
+# Enums
+enum Chain {
+  ETHEREUM
+  POLYGON
+  ARBITRUM
+  BASE
+  OPTIMISM
+  BSC
+  AVALANCHE
+}
+
+enum Currency {
+  USD
+  EUR
+  GBP
+  BTC
+  ETH
+}
+
+enum TimeInterval {
+  MINUTE_5
+  MINUTE_15
+  HOUR_1
+  HOUR_4
+  DAY_1
+  WEEK_1
+  MONTH_1
+}
+
+# Common types
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+
+type SyncResult {
+  success: Boolean!
+  message: String
+  transactionsSynced: Int
+  lastSyncedBlock: BigInt
+}
+
+type BatchSyncResult {
+  totalWallets: Int!
+  successCount: Int!
+  failureCount: Int!
+  results: [SyncResult!]!
+}
+
+# NFT types (basic for now)
+type NFT {
+  id: ID!
+  collection: NFTCollection!
+  tokenId: String!
+  name: String
+  imageUrl: String
+  traits: JSON
+}
+
+type NFTCollection {
+  address: String!
+  name: String!
+  symbol: String
+  chain: Chain!
+}

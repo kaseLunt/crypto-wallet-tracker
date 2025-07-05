@@ -1,0 +1,45 @@
+type DeFiPosition {
+  id: ID!
+  protocol: DeFiProtocol!
+  type: DeFiPositionType!
+  wallet: Wallet!
+
+  # Position details
+  suppliedTokens: [DeFiTokenAmount!]!
+  borrowedTokens: [DeFiTokenAmount!]!
+  rewardTokens: [DeFiTokenAmount!]!
+
+  # Values
+  totalSuppliedUSD: Float!
+  totalBorrowedUSD: Float!
+  totalRewardsUSD: Float!
+  netValueUSD: Float!
+
+  # Metrics
+  apy: Float
+  healthFactor: Float
+}
+
+type DeFiTokenAmount {
+  token: Token!
+  amount: String!
+  amountFormatted: Float!
+  valueUSD: Float!
+}
+
+enum DeFiProtocol {
+  AAVE
+  MORPHO
+  PENDLE
+  UNISWAP
+  CURVE
+  COMPOUND
+}
+
+enum DeFiPositionType {
+  LENDING
+  BORROWING
+  LIQUIDITY_POOL
+  STAKING
+  YIELD_FARMING
+}
