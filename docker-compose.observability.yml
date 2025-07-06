@@ -1,0 +1,115 @@
+# OpenTelemetry Collector and observability services
+# Usage: docker compose -f docker-compose.yml -f docker-compose.observability.yml up
+
+services:
+  # OpenTelemetry Collector
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: crypto-tracker-otel-collector
+    restart: unless-stopped
+    command: ["--config=/etc/otel-collector-config.yaml"]
+    volumes:
+      - ./docker/config/otel/otel-collector.yaml:/etc/otel-collector-config.yaml:ro
+      - ./docker/data/otel:/tmp:rw
+    ports:
+      - "4319:4317"   # OTLP gRPC receiver
+      - "4320:4318"   # OTLP HTTP receiver
+      - "8889:8889"   # Prometheus exporter
+      - "13133:13133" # Health check
+    environment:
+      - OTEL_RESOURCE_ATTRIBUTES_ENVIRONMENT=${NODE_ENV:-development}
+    depends_on:
+      - jaeger
+    networks:
+      - crypto-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:13133"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Jaeger v2 (simple configuration)
+  jaeger:
+    image: jaegertracing/jaeger:2.3.0
+    container_name: crypto-tracker-jaeger
+    restart: unless-stopped
+    ports:
+      - "16686:16686" # Jaeger UI
+      - "14250:14250" # Jaeger gRPC
+      - "14268:14268" # Jaeger HTTP
+      - "4317:4317"   # OTLP gRPC
+      - "4318:4318"   # OTLP HTTP
+    environment:
+      - SPAN_STORAGE_TYPE=memory
+      - LOG_LEVEL=info
+      - JAEGER_DISABLED=false
+    volumes:
+      - ./docker/data/jaeger:/tmp:rw
+    networks:
+      - crypto-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:14269/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: crypto-tracker-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+      - '--web.enable-admin-api'
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./docker/config/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./docker/data/prometheus:/prometheus:rw
+    depends_on:
+      - otel-collector
+    networks:
+      - crypto-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9090/-/healthy"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: crypto-tracker-grafana
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - ./docker/data/grafana:/var/lib/grafana:rw
+      - ./docker/config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./docker/config/grafana/dashboards:/etc/grafana/provisioning/dashboards:ro
+    depends_on:
+      - prometheus
+    networks:
+      - crypto-network
+    healthcheck:
+      test: [ "CMD-SHELL", "curl -f http://localhost:3000/api/health || exit 1" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+networks:
+  crypto-network:
+    external: true

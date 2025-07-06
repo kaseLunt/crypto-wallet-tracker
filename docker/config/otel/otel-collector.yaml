@@ -1,0 +1,67 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+  hostmetrics:
+    collection_interval: 10s
+    scrapers:
+      cpu:
+      disk:
+      filesystem:
+      load:
+      memory:
+      network:
+
+processors:
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 75
+
+  batch:
+    timeout: 5s
+    send_batch_size: 1
+
+  resource:
+    attributes:
+      - key: service.namespace
+        value: crypto-tracker
+        action: insert
+
+exporters:
+  otlp/jaeger:
+    endpoint: crypto-tracker-jaeger:4317
+    tls:
+      insecure: true
+
+  prometheus:
+    endpoint: "0.0.0.0:8889"
+    namespace: crypto_tracker
+
+  debug:
+    verbosity: detailed
+
+extensions:
+  health_check:
+    endpoint: 0.0.0.0:13133
+
+service:
+  extensions: [health_check]
+
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlp/jaeger, debug]
+    
+    metrics:
+      receivers: [otlp, hostmetrics]
+      processors: [memory_limiter, resource, batch]
+      exporters: [prometheus, debug]
+
+  telemetry:
+    logs:
+      level: info

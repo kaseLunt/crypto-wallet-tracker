@@ -1,8 +1,13 @@
+import type { Meter, Tracer } from "@crypto-tracker/telemetry";
 import type { GraphQLFieldResolver, GraphQLScalarType } from "graphql";
+import type { GraphQLGatewayMetrics } from "./metrics.js";
 
 export interface GraphQLContext {
-  requestId?: string;
-  // Add more context properties as needed
+  requestId: string;
+  tracer: Tracer;
+  meter: Meter;
+  metrics: GraphQLGatewayMetrics;
+  startTime: number;
 }
 
 export type Resolver<TResult = unknown, TParent = unknown> = GraphQLFieldResolver<

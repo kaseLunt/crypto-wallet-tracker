@@ -1,0 +1,37 @@
+extensions:
+  jaeger_storage:
+    backends:
+      memory:
+        memory:
+          max_traces: 100000
+    metric_backends:
+      prometheus:
+        prometheus:
+          endpoint: http://crypto-tracker-prometheus:9090
+          normalize_calls: true
+          normalize_duration: true
+
+  jaeger_query:
+    traces: memory
+    metrics_storage: prometheus
+    ui:
+      config:
+        monitor:
+          menuEnabled: true
+
+service:
+  extensions: [jaeger_storage, jaeger_query]
+  
+  pipelines:
+    traces:
+      receivers: [otlp, jaeger]
+      exporters: [jaeger_storage_exporter]
+
+  telemetry:
+    resource:
+      service.name: jaeger
+    metrics:
+      level: detailed
+      address: 0.0.0.0:8888
+    logs:
+      level: info

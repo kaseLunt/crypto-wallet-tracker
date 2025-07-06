@@ -1,17 +1,29 @@
+// This MUST be imported first to initialize OpenTelemetry before other modules
+import "./telemetry.js";
+
+import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { makeExecutableSchema } from "@graphql-tools/schema";
-import type { IResolvers } from "@graphql-tools/utils";
-import { createYoga } from "graphql-yoga";
-import { BigIntScalar, DateTimeScalar, JSONScalar } from "./scalars.js";
+import type { Span } from "@opentelemetry/api";
+import type { ExecutionResult } from "graphql";
+import { type Plugin, createYoga } from "graphql-yoga";
+import { GraphQLGatewayMetrics } from "./metrics.js";
+import { resolvers } from "./resolvers.js";
+import { meter, tracer } from "./telemetry.js";
 import type { GraphQLContext } from "./types.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// Define a union type for all possible parent types
-type ResolverParent = Record<string, unknown> | null | undefined;
+// Initialize metrics
+const metrics = new GraphQLGatewayMetrics(meter);
+
+// Extend Request interface to include our span
+interface RequestWithSpan extends Request {
+  __otelSpan?: Span;
+}
 
 // Load schema files
 const typeDefs = [
@@ -24,116 +36,120 @@ const typeDefs = [
   readFileSync(join(__dirname, "schema/types/defi.graphql"), "utf-8"),
 ].join("\n\n");
 
-// Use IResolvers with proper parent type
-const resolvers: IResolvers<ResolverParent, GraphQLContext> = {
-  Query: {
-    wallet: () => ({ id: "1", address: "0x...", chain: "ETHEREUM" }),
-    wallets: () => ({
-      edges: [],
-      pageInfo: {
-        hasNextPage: false,
-        hasPreviousPage: false,
-        startCursor: null,
-        endCursor: null,
-      },
-      totalCount: 0,
-    }),
-    portfolio: () => ({
-      wallets: [],
-      totalValueUSD: 0,
-      totalValueChange24h: 0,
-      totalValueChange24hPercent: 0,
-      chainBreakdown: [],
-      tokenBreakdown: [],
-      performanceMetrics: {
-        totalReturn: 0,
-        totalReturnPercent: 0,
-        bestPerformer: null,
-        worstPerformer: null,
-      },
-    }),
-    portfolioHistory: () => [],
-    token: () => null,
-    tokens: () => [],
-    tokenPrice: () => null,
-    tokenPriceHistory: () => [],
-    transactions: () => ({
-      edges: [],
-      pageInfo: {
-        hasNextPage: false,
-        hasPreviousPage: false,
-        startCursor: null,
-        endCursor: null,
-      },
-      totalCount: 0,
-    }),
-    defiPositions: () => [],
-  },
-  Mutation: {
-    addWallet: () => ({
-      id: "1",
-      address: "0x...",
-      chain: "ETHEREUM",
-      label: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      lastSyncedAt: null,
-      isActive: true,
-    }),
-    updateWallet: () => ({
-      id: "1",
-      address: "0x...",
-      chain: "ETHEREUM",
-      label: null,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      lastSyncedAt: null,
-      isActive: true,
-    }),
-    removeWallet: () => true,
-    syncWallet: () => ({
-      success: true,
-      message: "Sync started",
-      transactionsSynced: 0,
-      lastSyncedBlock: "0",
-    }),
-    syncAllWallets: () => ({
-      totalWallets: 0,
-      successCount: 0,
-      failureCount: 0,
-      results: [],
-    }),
-  },
-  Subscription: {
-    priceUpdates: {
-      subscribe: () => {
-        throw new Error("Subscriptions not implemented yet");
-      },
-    },
-    walletActivity: {
-      subscribe: () => {
-        throw new Error("Subscriptions not implemented yet");
-      },
-    },
-    portfolioValueChanged: {
-      subscribe: () => {
-        throw new Error("Subscriptions not implemented yet");
-      },
-    },
-  },
-  // Custom scalar resolvers
-  DateTime: DateTimeScalar,
-  BigInt: BigIntScalar,
-  JSON: JSONScalar,
-};
-
 const schema = makeExecutableSchema({
   typeDefs,
   resolvers,
 });
 
-const yoga = createYoga({
+// Create telemetry plugin with proper typing
+const telemetryPlugin: Plugin<GraphQLContext> = {
+  onRequest({ request }) {
+    // Store span in request for later use
+    const span = tracer.startSpan("graphql.request", {
+      attributes: {
+        "http.method": request.method,
+        "http.url": request.url,
+        "http.user_agent": request.headers.get("user-agent") ?? undefined,
+      },
+    });
+
+    (request as RequestWithSpan).__otelSpan = span;
+  },
+
+  onParse() {
+    const span = tracer.startSpan("graphql.parse");
+
+    return () => {
+      span.end();
+    };
+  },
+
+  onValidate() {
+    const span = tracer.startSpan("graphql.validate");
+
+    return () => {
+      span.end();
+    };
+  },
+
+  onExecute({ args }) {
+    const operationType =
+      args.document.definitions[0]?.kind === "OperationDefinition"
+        ? args.document.definitions[0].operation
+        : "unknown";
+
+    const operationName =
+      args.document.definitions[0]?.kind === "OperationDefinition" &&
+      args.document.definitions[0].name
+        ? args.document.definitions[0].name.value
+        : null;
+
+    const span = tracer.startSpan("graphql.execute", {
+      attributes: {
+        "request.id": args.contextValue.requestId,
+        "graphql.operation.type": operationType,
+        "graphql.operation.name": operationName ?? "anonymous",
+      },
+    });
+
+    return {
+      onExecuteDone({ result }) {
+        const duration = Date.now() - args.contextValue.startTime;
+        const execResult = result as ExecutionResult;
+        const hasErrors = execResult.errors && execResult.errors.length > 0;
+
+        // Record metrics
+        metrics.recordGraphQLRequest(operationType, operationName, !hasErrors);
+        metrics.recordGraphQLDuration(duration, operationType, operationName);
+
+        if (hasErrors && execResult.errors) {
+          for (const error of execResult.errors) {
+            metrics.recordGraphQLError(
+              (error.extensions?.["code"] as string) ?? "UNKNOWN_ERROR",
+              operationType,
+              operationName,
+            );
+          }
+        }
+
+        span.setAttributes({
+          "graphql.errors.count": execResult.errors?.length ?? 0,
+          "graphql.request.duration": duration,
+        });
+
+        span.end();
+      },
+    };
+  },
+
+  onResponse({ request, response }) {
+    const requestWithSpan = request as RequestWithSpan;
+    const span = requestWithSpan.__otelSpan;
+    if (span) {
+      span.setAttributes({
+        "http.status_code": response.status,
+        "response.size": Number.parseInt(response.headers.get("content-length") ?? "0", 10),
+      });
+      span.end();
+    }
+  },
+};
+
+const yoga = createYoga<GraphQLContext>({
   schema,
+  context: (): GraphQLContext => {
+    const requestId = randomUUID();
+    const startTime = Date.now();
+
+    return {
+      requestId,
+      tracer,
+      meter,
+      metrics,
+      startTime,
+    };
+  },
+  plugins: [telemetryPlugin],
   cors: {
     origin: process.env["NEXT_PUBLIC_APP_URL"] ?? "http://localhost:3000",
     credentials: true,
@@ -161,4 +177,20 @@ const port = process.env["PORT"] ?? 4000;
 
 server.listen(Number(port), () => {
   console.log(`🚀 GraphQL server running at http://localhost:${port}/graphql`);
+  console.log("📊 Telemetry enabled - service: crypto-tracker-graphql-gateway");
+});
+
+// Graceful shutdown
+process.on("SIGTERM", async () => {
+  console.log("SIGTERM received, shutting down gracefully...");
+  server.close(() => {
+    console.log("Server closed");
+  });
+});
+
+process.on("SIGINT", async () => {
+  console.log("SIGINT received, shutting down gracefully...");
+  server.close(() => {
+    console.log("Server closed");
+  });
 });

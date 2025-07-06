@@ -129,7 +129,7 @@ export function initializeTelemetry(config: TelemetrySDKConfig): TelemetrySDK {
   const sdk = new TelemetrySDK(config);
   sdk.start();
 
-  // Setup graceful shutdown
+  // Set up graceful shutdown
   const shutdownHandler = async () => {
     await sdk.shutdown();
   };

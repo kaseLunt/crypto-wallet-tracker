@@ -43,6 +43,11 @@ export function createResource(config: TelemetryConfig): Resource {
 }
 
 export function createTraceExporter(config: TelemetryConfig): OTLPTraceExporter {
+  // Only create OTLP exporter if endpoint is provided
+  if (!config.otlpEndpoint) {
+    throw new Error("OTLP endpoint is required for trace exporter");
+  }
+
   const exporterConfig = {
     url: `${config.otlpEndpoint}/v1/traces`,
     timeoutMillis: 5000,
@@ -57,6 +62,11 @@ export function createTraceExporter(config: TelemetryConfig): OTLPTraceExporter 
 }
 
 export function createMetricExporter(config: TelemetryConfig): OTLPMetricExporter {
+  // Only create OTLP exporter if endpoint is provided
+  if (!config.otlpEndpoint) {
+    throw new Error("OTLP endpoint is required for metric exporter");
+  }
+
   const exporterConfig = {
     url: `${config.otlpEndpoint}/v1/metrics`,
     timeoutMillis: 5000,
