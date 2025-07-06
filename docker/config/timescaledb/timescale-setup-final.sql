@@ -1,25 +1,10 @@
 -- Enable TimescaleDB
 CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;
 
--- First, let's check and display what constraints exist
+-- Convert tables to hypertables
 DO $$
 DECLARE
-    constraint_record RECORD;
-BEGIN
-    RAISE NOTICE 'Current constraints on crypto.transactions:';
-    FOR constraint_record IN
-        SELECT conname, contype
-        FROM pg_constraint
-        WHERE conrelid = 'crypto.transactions'::regclass
-    LOOP
-        RAISE NOTICE '  - % (type: %)', constraint_record.conname, constraint_record.contype;
-    END LOOP;
-END $$;
-
-DO $$
-DECLARE
-    has_id_column BOOLEAN;
-    has_unique_on_id BOOLEAN;
+    constraint_rec RECORD;
 BEGIN
     RAISE NOTICE 'Starting TimescaleDB setup...';
 
@@ -30,22 +15,24 @@ BEGIN
     ) THEN
         RAISE NOTICE '[token_prices] Converting to hypertable...';
 
-        -- Drop ALL constraints on the table
-        FOR constraint_record IN
+        -- Drop all constraints
+        FOR constraint_rec IN
             SELECT conname
             FROM pg_constraint
             WHERE conrelid = 'analytics.token_prices'::regclass
         LOOP
-            EXECUTE format('ALTER TABLE analytics.token_prices DROP CONSTRAINT %I CASCADE', constraint_record.conname);
+            EXECUTE format('ALTER TABLE analytics.token_prices DROP CONSTRAINT %I CASCADE', constraint_rec.conname);
         END LOOP;
 
         -- Create hypertable
         PERFORM create_hypertable('analytics.token_prices', 'time');
 
-        -- Add back only the constraints we need
+        -- Add back necessary constraints
         ALTER TABLE analytics.token_prices ADD CONSTRAINT token_prices_time_token_id_unique UNIQUE (time, token_id);
 
         RAISE NOTICE '[token_prices] Successfully converted to hypertable.';
+    ELSE
+        RAISE NOTICE '[token_prices] Already a hypertable.';
     END IF;
 
     -- Handle wallet_snapshots table
@@ -55,53 +42,49 @@ BEGIN
     ) THEN
         RAISE NOTICE '[wallet_snapshots] Converting to hypertable...';
 
-        -- Drop ALL constraints
-        FOR constraint_record IN
+        -- Drop all constraints
+        FOR constraint_rec IN
             SELECT conname
             FROM pg_constraint
             WHERE conrelid = 'analytics.wallet_snapshots'::regclass
         LOOP
-            EXECUTE format('ALTER TABLE analytics.wallet_snapshots DROP CONSTRAINT %I CASCADE', constraint_record.conname);
+            EXECUTE format('ALTER TABLE analytics.wallet_snapshots DROP CONSTRAINT %I CASCADE', constraint_rec.conname);
         END LOOP;
 
         -- Create hypertable
         PERFORM create_hypertable('analytics.wallet_snapshots', 'time');
 
-        -- Add back only the constraints we need
+        -- Add back necessary constraints
         ALTER TABLE analytics.wallet_snapshots ADD CONSTRAINT wallet_snapshots_time_wallet_id_unique UNIQUE (time, wallet_id);
 
         RAISE NOTICE '[wallet_snapshots] Successfully converted to hypertable.';
+    ELSE
+        RAISE NOTICE '[wallet_snapshots] Already a hypertable.';
     END IF;
 
-    -- Handle transactions table (most complex)
+    -- Handle transactions table
     IF NOT EXISTS (
         SELECT 1 FROM timescaledb_information.hypertables
         WHERE hypertable_schema = 'crypto' AND hypertable_name = 'transactions'
     ) THEN
         RAISE NOTICE '[transactions] Beginning conversion...';
 
-        -- Check if id column exists and what constraints it has
-        SELECT EXISTS (
-            SELECT 1 FROM information_schema.columns
-            WHERE table_schema = 'crypto'
-            AND table_name = 'transactions'
-            AND column_name = 'id'
-        ) INTO has_id_column;
+        -- First, save foreign key definitions before dropping them
+        RAISE NOTICE '[transactions] Saving foreign key relationships...';
 
-        -- First drop foreign keys that depend on this table
-        RAISE NOTICE '[transactions] Dropping dependent foreign keys...';
+        -- Drop dependent foreign keys
         ALTER TABLE crypto.token_transfers DROP CONSTRAINT IF EXISTS token_transfers_transaction_id_fkey CASCADE;
         ALTER TABLE crypto.nft_transfers DROP CONSTRAINT IF EXISTS nft_transfers_transaction_id_fkey CASCADE;
 
-        -- Now drop ALL constraints on the transactions table
+        -- Drop all constraints on transactions table
         RAISE NOTICE '[transactions] Dropping all constraints...';
-        FOR constraint_record IN
+        FOR constraint_rec IN
             SELECT conname
             FROM pg_constraint
             WHERE conrelid = 'crypto.transactions'::regclass
         LOOP
-            EXECUTE format('ALTER TABLE crypto.transactions DROP CONSTRAINT %I CASCADE', constraint_record.conname);
-            RAISE NOTICE '  Dropped constraint: %', constraint_record.conname;
+            EXECUTE format('ALTER TABLE crypto.transactions DROP CONSTRAINT %I CASCADE', constraint_rec.conname);
+            RAISE NOTICE '  Dropped: %', constraint_rec.conname;
         END LOOP;
 
         -- Create hypertable
@@ -111,26 +94,34 @@ BEGIN
         -- Add back necessary constraints
         RAISE NOTICE '[transactions] Re-creating constraints...';
 
-        -- Unique constraint for deduplication (including time)
+        -- Unique constraint for deduplication (including time for TimescaleDB compatibility)
         ALTER TABLE crypto.transactions ADD CONSTRAINT transactions_hash_chain_time_unique
             UNIQUE (hash, chain, time);
 
-        -- If we have an id column, create a non-unique index for it
-        IF has_id_column THEN
-            CREATE INDEX idx_transactions_id ON crypto.transactions(id);
-            RAISE NOTICE '  Created index on id column';
-        END IF;
+        -- Create index on id for foreign key performance (NOT unique)
+        CREATE INDEX idx_transactions_id ON crypto.transactions(id);
 
-        -- Re-create foreign keys
+        -- Re-add foreign key constraints
+        ALTER TABLE crypto.transactions
+            ADD CONSTRAINT transactions_wallet_id_fkey
+            FOREIGN KEY (wallet_id) REFERENCES crypto.wallets(id);
+
+        ALTER TABLE crypto.transactions
+            ADD CONSTRAINT transactions_token_id_fkey
+            FOREIGN KEY (token_id) REFERENCES crypto.tokens(id);
+
+        -- Re-create foreign keys from other tables
         ALTER TABLE crypto.token_transfers
             ADD CONSTRAINT token_transfers_transaction_id_fkey
-            FOREIGN KEY (transaction_id) REFERENCES crypto.transactions(id) ON DELETE CASCADE;
+            FOREIGN KEY (transaction_id) REFERENCES crypto.transactions(id);
 
         ALTER TABLE crypto.nft_transfers
             ADD CONSTRAINT nft_transfers_transaction_id_fkey
-            FOREIGN KEY (transaction_id) REFERENCES crypto.transactions(id) ON DELETE CASCADE;
+            FOREIGN KEY (transaction_id) REFERENCES crypto.transactions(id);
 
         RAISE NOTICE '[transactions] Successfully converted to hypertable.';
+    ELSE
+        RAISE NOTICE '[transactions] Already a hypertable.';
     END IF;
 
     -- Set chunk intervals
@@ -140,15 +131,16 @@ BEGIN
 
 END $$;
 
--- Create continuous aggregates
+-- Create continuous aggregates if they don't exist
 DO $$
 BEGIN
     IF EXISTS (
         SELECT 1 FROM timescaledb_information.hypertables
         WHERE hypertable_schema = 'analytics' AND hypertable_name = 'token_prices'
+    ) AND NOT EXISTS (
+        SELECT 1 FROM timescaledb_information.continuous_aggregates
+        WHERE view_name = 'hourly_token_prices'
     ) THEN
-        DROP MATERIALIZED VIEW IF EXISTS analytics.hourly_token_prices CASCADE;
-
         CREATE MATERIALIZED VIEW analytics.hourly_token_prices
         WITH (timescaledb.continuous) AS
         SELECT
@@ -170,23 +162,31 @@ BEGIN
             schedule_interval => INTERVAL '1 hour',
             if_not_exists => TRUE
         );
+
+        RAISE NOTICE 'Created continuous aggregate: hourly_token_prices';
     END IF;
 END $$;
 
--- Add compression policies
-SELECT add_compression_policy('crypto.transactions', INTERVAL '30 days', if_not_exists => TRUE)
-WHERE EXISTS (SELECT 1 FROM timescaledb_information.hypertables WHERE hypertable_name = 'transactions');
+-- Add compression policies (only if hypertables exist)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM timescaledb_information.hypertables WHERE hypertable_schema = 'crypto' AND hypertable_name = 'transactions') THEN
+        PERFORM add_compression_policy('crypto.transactions', INTERVAL '30 days', if_not_exists => TRUE);
+    END IF;
 
-SELECT add_compression_policy('analytics.token_prices', INTERVAL '7 days', if_not_exists => TRUE)
-WHERE EXISTS (SELECT 1 FROM timescaledb_information.hypertables WHERE hypertable_name = 'token_prices');
+    IF EXISTS (SELECT 1 FROM timescaledb_information.hypertables WHERE hypertable_schema = 'analytics' AND hypertable_name = 'token_prices') THEN
+        PERFORM add_compression_policy('analytics.token_prices', INTERVAL '7 days', if_not_exists => TRUE);
+    END IF;
 
-SELECT add_compression_policy('analytics.wallet_snapshots', INTERVAL '30 days', if_not_exists => TRUE)
-WHERE EXISTS (SELECT 1 FROM timescaledb_information.hypertables WHERE hypertable_name = 'wallet_snapshots');
+    IF EXISTS (SELECT 1 FROM timescaledb_information.hypertables WHERE hypertable_schema = 'analytics' AND hypertable_name = 'wallet_snapshots') THEN
+        PERFORM add_compression_policy('analytics.wallet_snapshots', INTERVAL '30 days', if_not_exists => TRUE);
+    END IF;
+END $$;
 
--- Create indexes
+-- Create performance indexes
 CREATE INDEX IF NOT EXISTS idx_transactions_wallet_time ON crypto.transactions (wallet_id, time DESC);
 CREATE INDEX IF NOT EXISTS idx_token_prices_token_time ON analytics.token_prices (token_id, time DESC);
 CREATE INDEX IF NOT EXISTS idx_wallet_snapshots_wallet_time ON analytics.wallet_snapshots (wallet_id, time DESC);
 
--- Final summary
-SELECT 'Setup complete. Hypertables: ' || COUNT(*) FROM timescaledb_information.hypertables WHERE hypertable_schema IN ('crypto', 'analytics');
+-- Show summary
+SELECT 'Hypertables created: ' || COUNT(*) FROM timescaledb_information.hypertables WHERE hypertable_schema IN ('crypto', 'analytics');
