@@ -1,36 +1,148 @@
 #!/bin/bash
 set -e
 
+# Colors for output
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+# Helper functions
+log_info() {
+    echo -e "${GREEN}✓${NC} $1"
+}
+
+log_warn() {
+    echo -e "${YELLOW}⚠${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}✗${NC} $1"
+}
+
+# Check if a command exists
+command_exists() {
+    command -v "$1" >/dev/null 2>&1
+}
+
+# Wait for a service to be healthy
+wait_for_service() {
+    local service=$1
+    local max_attempts=30
+    local attempt=0
+
+    echo -n "Waiting for $service to be healthy"
+
+    while [ $attempt -lt $max_attempts ]; do
+        if docker compose exec -T $service pg_isready -U postgres >/dev/null 2>&1; then
+            echo " ✓"
+            return 0
+        fi
+
+        echo -n "."
+        sleep 1
+        attempt=$((attempt + 1))
+    done
+
+    echo " ✗"
+    return 1
+}
+
+# Main script starts here
 echo "🚀 Starting Crypto Tracker Docker services..."
 
-# Load environment variables safely
-if [ -f .env.docker ]; then
-    # The 'set -a' command tells the shell to automatically export
-    # any variables that are created or modified.
-    set -a
+# Step 1: Check dependencies
+log_info "Checking dependencies..."
 
-    # The 'source' command executes the file in the current shell context,
-    # which loads the variables. Because of 'set -a', they are exported.
-    source .env.docker
-
-    # The 'set +a' command disables the auto-export behavior.
-    set +a
+if ! command_exists docker; then
+    log_error "Docker is not installed. Please install Docker Desktop."
+    exit 1
 fi
 
-# Create data directories if they don't exist
+if ! docker compose version >/dev/null 2>&1; then
+    log_error "Docker Compose v2 is not available. Please update Docker Desktop."
+    exit 1
+fi
+
+# Step 2: Load environment
+if [ -f .env.docker ]; then
+    log_info "Loading environment from .env.docker"
+    set -a
+    source .env.docker
+    set +a
+else
+    log_warn ".env.docker not found, using defaults"
+fi
+
+# Step 3: Create directories
+log_info "Creating data directories..."
 mkdir -p docker/data/{timescaledb,redis,nats,pgadmin}
 
-# Start services using modern docker compose command
+# Step 4: Start services
+log_info "Starting Docker services..."
 docker compose up -d
 
-# Wait for services to be healthy
-echo "⏳ Waiting for services to be healthy..."
-sleep 5
+# Step 5: Wait for services to be healthy
+log_info "Waiting for services to be healthy..."
 
-# Check service health
-docker compose ps
+# Check TimescaleDB
+if ! wait_for_service timescaledb; then
+    log_error "TimescaleDB failed to start"
+    docker compose logs timescaledb
+    exit 1
+fi
 
-echo "✅ Services started successfully!"
+# Check Redis
+echo -n "Waiting for Redis to be healthy"
+attempt=0
+while [ $attempt -lt 30 ]; do
+    if docker compose exec -T redis redis-cli -a "${REDIS_PASSWORD:-redis}" ping >/dev/null 2>&1; then
+        echo " ✓"
+        break
+    fi
+    echo -n "."
+    sleep 1
+    attempt=$((attempt + 1))
+done
+
+if [ $attempt -eq 30 ]; then
+    log_error "Redis failed to start"
+    docker compose logs redis
+    exit 1
+fi
+
+# Check NATS
+echo -n "Waiting for NATS to be healthy"
+attempt=0
+while [ $attempt -lt 30 ]; do
+    if curl -s http://localhost:8222/healthz >/dev/null 2>&1; then
+        echo " ✓"
+        break
+    fi
+    echo -n "."
+    sleep 1
+    attempt=$((attempt + 1))
+done
+
+if [ $attempt -eq 30 ]; then
+    log_error "NATS failed to start"
+    docker compose logs nats
+    exit 1
+fi
+
+# Step 6: Initialize database (if needed)
+if [ ! -f docker/data/.initialized ]; then
+    log_info "First time setup - initializing database..."
+
+    # Run any additional SQL scripts
+    # docker compose exec -T timescaledb psql -U postgres -d crypto_tracker < docker/config/timescaledb/post-init.sql
+
+    # Mark as initialized
+    touch docker/data/.initialized
+fi
+
+# Step 7: Show status
+log_info "All services started successfully!"
 echo ""
 echo "📊 Service URLs:"
 echo "  - TimescaleDB: postgresql://localhost:5432/crypto_tracker"

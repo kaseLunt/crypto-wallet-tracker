@@ -44,16 +44,25 @@ async function main() {
 
   console.log(`✅ Seeded ${tokens.length} tokens`);
 
-  // Create a sample wallet
-  const wallet = await prisma.wallet.create({
-    data: {
+  // Upsert a sample wallet (use upsert instead of create)
+  const wallet = await prisma.wallet.upsert({
+    where: {
+      address_chain: {
+        address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD40",
+        chain: Chain.ETHEREUM,
+      },
+    },
+    update: {
+      label: "Demo Wallet",
+    },
+    create: {
       address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD40",
       chain: Chain.ETHEREUM,
       label: "Demo Wallet",
     },
   });
 
-  console.log(`✅ Created demo wallet: ${wallet.address}`);
+  console.log(`✅ Created/Updated demo wallet: ${wallet.address}`);
 }
 
 main()

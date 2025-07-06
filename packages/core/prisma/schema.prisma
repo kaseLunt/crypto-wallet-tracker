@@ -9,8 +9,7 @@ datasource db {
   url        = env("DATABASE_URL")
   directUrl  = env("DIRECT_DATABASE_URL")
   schemas    = ["crypto", "analytics", "public"]
-  // Temporarily comment out extensions
-  // extensions = [uuid_ossp(map: "uuid-ossp"), pgcrypto, timescaledb]
+  // Note: TimescaleDB extension will be enabled via SQL script
 }
 
 // ==================== ENUMS ====================
@@ -134,7 +133,9 @@ model Token {
   @@schema("crypto")
 }
 
+// MODIFIED: Changed from composite primary key to regular id with unique constraint
 model Transaction {
+  id            String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   time          DateTime          @map("time") @db.Timestamptz(6)
   walletId      String            @map("wallet_id") @db.Uuid
   hash          String            @db.VarChar(255)
@@ -142,8 +143,8 @@ model Transaction {
   fromAddress   String            @map("from_address") @db.VarChar(255)
   toAddress     String            @map("to_address") @db.VarChar(255)
   tokenId       String?           @map("token_id") @db.Uuid
-  amount        Decimal            @db.Decimal(78, 0)
-  gasFee        Decimal?           @map("gas_fee") @db.Decimal(78, 0)
+  amount        Decimal           @db.Decimal(78, 0)
+  gasFee        Decimal?          @map("gas_fee") @db.Decimal(78, 0)
   blockNumber   BigInt            @map("block_number")
   status        TransactionStatus @default(CONFIRMED)
   type          TransactionType?
@@ -155,9 +156,10 @@ model Transaction {
   tokenTransfers TokenTransfer[]
   nftTransfers   NFTTransfer[]
 
-  // Composite primary key for hypertable
-  @@id([time, walletId, hash])
+  // Unique constraint for deduplication
   @@unique([hash, chain])
+  // Index for TimescaleDB partitioning
+  @@index([time])
   @@index([walletId, time(sort: Desc)])
   @@index([blockNumber])
   @@map("transactions")
@@ -184,23 +186,22 @@ model WalletBalance {
   @@schema("crypto")
 }
 
+// MODIFIED: Changed to use transaction id instead of composite key
 model TokenTransfer {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  transactionTime  DateTime @map("transaction_time") @db.Timestamptz(6)
-  transactionWalletId String @map("transaction_wallet_id") @db.Uuid
-  transactionHash  String   @map("transaction_hash") @db.VarChar(255)
-  tokenId          String   @map("token_id") @db.Uuid
-  fromAddress      String   @map("from_address") @db.VarChar(255)
-  toAddress        String   @map("to_address") @db.VarChar(255)
-  amount           Decimal   @db.Decimal(78, 0)
-  amountUsd        Decimal? @map("amount_usd") @db.Decimal(20, 2)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionId   String    @map("transaction_id") @db.Uuid
+  tokenId         String    @map("token_id") @db.Uuid
+  fromAddress     String    @map("from_address") @db.VarChar(255)
+  toAddress       String    @map("to_address") @db.VarChar(255)
+  amount          Decimal   @db.Decimal(78, 0)
+  amountUsd       Decimal?  @map("amount_usd") @db.Decimal(20, 2)
 
   // Relations
-  transaction Transaction @relation(fields: [transactionTime, transactionWalletId, transactionHash], references: [time, walletId, hash])
+  transaction Transaction @relation(fields: [transactionId], references: [id])
   token       Token       @relation(fields: [tokenId], references: [id])
 
   // Indexes
-  @@index([transactionTime, transactionWalletId, transactionHash])
+  @@index([transactionId])
   @@index([tokenId])
   @@map("token_transfers")
   @@schema("crypto")
@@ -247,22 +248,21 @@ model NFT {
   @@schema("crypto")
 }
 
+// MODIFIED: Changed to use transaction id
 model NFTTransfer {
-  id            String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  transactionTime  DateTime @map("transaction_time") @db.Timestamptz(6)
-  transactionWalletId String @map("transaction_wallet_id") @db.Uuid
-  transactionHash  String   @map("transaction_hash") @db.VarChar(255)
-  collectionId     String   @map("collection_id") @db.Uuid
-  tokenId          String   @map("token_id") @db.VarChar(255)
-  fromAddress      String   @map("from_address") @db.VarChar(255)
-  toAddress        String   @map("to_address") @db.VarChar(255)
+  id              String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  transactionId   String    @map("transaction_id") @db.Uuid
+  collectionId    String    @map("collection_id") @db.Uuid
+  tokenId         String    @map("token_id") @db.VarChar(255)
+  fromAddress     String    @map("from_address") @db.VarChar(255)
+  toAddress       String    @map("to_address") @db.VarChar(255)
 
   // Relations
-  transaction Transaction   @relation(fields: [transactionTime, transactionWalletId, transactionHash], references: [time, walletId, hash])
+  transaction Transaction   @relation(fields: [transactionId], references: [id])
   collection  NFTCollection @relation(fields: [collectionId], references: [id])
 
   // Indexes
-  @@index([transactionTime, transactionWalletId, transactionHash])
+  @@index([transactionId])
   @@index([collectionId])
   @@map("nft_transfers")
   @@schema("crypto")
@@ -322,7 +322,9 @@ enum DeFiTokenAmountType {
 
 // ==================== ANALYTICS SCHEMA MODELS ====================
 
+// MODIFIED: Changed to have regular id as primary key
 model TokenPrice {
+  id               String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   time             DateTime     @map("time") @db.Timestamptz(6)
   tokenId          String       @map("token_id") @db.Uuid
   priceUsd         Decimal      @map("price_usd") @db.Decimal(20, 8)
@@ -336,14 +338,17 @@ model TokenPrice {
   // Relations
   token Token @relation(fields: [tokenId], references: [id])
 
-  // Composite primary key for hypertable
-  @@id([time, tokenId])
+  // Unique constraint and indexes for TimescaleDB
+  @@unique([time, tokenId])
+  @@index([time])
   @@index([tokenId, time(sort: Desc)])
   @@map("token_prices")
   @@schema("analytics")
 }
 
+// MODIFIED: Changed to have regular id as primary key
 model WalletSnapshot {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   time          DateTime @map("time") @db.Timestamptz(6)
   walletId      String   @map("wallet_id") @db.Uuid
   totalValueUsd Decimal  @map("total_value_usd") @db.Decimal(20, 2)
@@ -353,8 +358,9 @@ model WalletSnapshot {
   // Relations
   wallet Wallet @relation(fields: [walletId], references: [id])
 
-  // Composite primary key for hypertable
-  @@id([time, walletId])
+  // Unique constraint and indexes for TimescaleDB
+  @@unique([time, walletId])
+  @@index([time])
   @@index([walletId, time(sort: Desc)])
   @@map("wallet_snapshots")
   @@schema("analytics")
