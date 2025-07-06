@@ -6,7 +6,6 @@
     "dev": "turbo run dev",
     "test": "turbo run test",
     "clean": "turbo run clean && rm -rf node_modules",
-    "clean:all": "pnpm clean && pnpm -r exec rm -rf node_modules",
     "docker:start": "./docker/scripts/start.sh",
     "docker:stop": "./docker/scripts/stop.sh",
     "docker:reset": "./docker/scripts/reset.sh",
@@ -20,7 +19,15 @@
     "format": "turbo run format",
     "format:check": "turbo run format:check",
     "check": "pnpm run type-check && pnpm run lint && pnpm run format:check",
-    "check:fix": "pnpm run type-check && pnpm run lint:fix && pnpm run format"
+    "check:fix": "pnpm run type-check && pnpm run lint:fix && pnpm run format",
+    "setup": "./scripts/dev/setup.sh",
+    "dev:full": "./scripts/dev.sh",
+    "dev:services": "pnpm docker:start",
+    "dev:apps": "turbo run dev --filter=!@crypto-tracker/indexer",
+    "db:setup": "pnpm --filter @crypto-tracker/core run db:push && pnpm --filter @crypto-tracker/core run db:seed",
+    "generate": "turbo run codegen db:generate",
+    "check:ports": "./scripts/dev/check-ports.sh",
+    "clean:all": "pnpm clean && docker compose down -v && rm -rf docker/data/*"
   },
   "pnpm": {
     "overrides": {
