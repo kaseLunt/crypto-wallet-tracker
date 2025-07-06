@@ -5,6 +5,7 @@
     "build": "turbo run build",
     "dev": "turbo run dev",
     "test": "turbo run test",
+    "test:telemetry": "pnpm --filter @crypto-tracker/telemetry run test",
     "clean": "turbo run clean && rm -rf node_modules",
     "docker:start": "./docker/scripts/start.sh",
     "docker:stop": "./docker/scripts/stop.sh",

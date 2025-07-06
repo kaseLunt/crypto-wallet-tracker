@@ -34,9 +34,7 @@ const nextConfig: NextConfig = {
 
   // Environment variables
   env: {
-    NEXT_PUBLIC_APP_URL:
-      // biome-ignore lint/complexity/useLiteralKeys: TypeScript's `noPropertyAccessFromIndexSignature` rule requires bracket notation for process.env.
-      process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000",
+    NEXT_PUBLIC_APP_URL: process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000",
   },
 
   // Headers for security
