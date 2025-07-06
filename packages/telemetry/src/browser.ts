@@ -1,4 +1,3 @@
-// FILE: packages/telemetry/src/browser.ts
 import { type Span, type Tracer, context, trace } from "@opentelemetry/api";
 import { ZoneContextManager } from "@opentelemetry/context-zone";
 import {
@@ -15,11 +14,14 @@ import { XMLHttpRequestInstrumentation } from "@opentelemetry/instrumentation-xm
 import { Resource } from "@opentelemetry/resources";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { WebTracerProvider } from "@opentelemetry/sdk-trace-web";
-import {
-  ATTR_DEPLOYMENT_ENVIRONMENT_NAME,
-  ATTR_SERVICE_NAME,
-  ATTR_SERVICE_VERSION,
-} from "./constants.js";
+
+// Define constants locally instead of importing
+const ATTR_DEPLOYMENT_ENVIRONMENT_NAME = "deployment.environment.name";
+const ATTR_SERVICE_NAME = "service.name";
+const ATTR_SERVICE_VERSION = "service.version";
+
+// Move regex patterns to top level for performance
+const LOCALHOST_REGEX = /localhost/;
 
 export interface BrowserTelemetryConfig {
   serviceName: string;
@@ -64,11 +66,11 @@ export function initializeBrowserTelemetry(config: BrowserTelemetryConfig): void
       headers: {},
     });
 
-    // Create and add span processor (fixed - use addSpanProcessor)
+    // Create and add span processor
     const spanProcessor = new BatchSpanProcessor(exporter);
     provider.addSpanProcessor(spanProcessor);
 
-    // Register provider with propagator only (fixed - removed spanProcessor)
+    // Register provider with propagator
     provider.register({
       propagator: new CompositePropagator({
         propagators: [new W3CTraceContextPropagator(), new W3CBaggagePropagator()],
@@ -79,7 +81,11 @@ export function initializeBrowserTelemetry(config: BrowserTelemetryConfig): void
     const contextManager = new ZoneContextManager();
     context.setGlobalContextManager(contextManager);
 
-    // Register instrumentations (fixed - removed requestHook)
+    // Create CORS URL patterns (endpoint-specific regex created here to avoid recreating constantly)
+    const endpointRegex = new RegExp(config.otlpEndpoint);
+    const corsUrls = [endpointRegex, LOCALHOST_REGEX];
+
+    // Register instrumentations
     registerInstrumentations({
       instrumentations: [
         new DocumentLoadInstrumentation(),
@@ -87,12 +93,11 @@ export function initializeBrowserTelemetry(config: BrowserTelemetryConfig): void
           eventNames: ["click", "submit", "keydown"],
         }),
         new FetchInstrumentation({
-          propagateTraceHeaderCorsUrls: [new RegExp(config.otlpEndpoint), /localhost/],
+          propagateTraceHeaderCorsUrls: corsUrls,
           clearTimingResources: true,
-          // Removed requestHook as it doesn't exist in the type
         }),
         new XMLHttpRequestInstrumentation({
-          propagateTraceHeaderCorsUrls: [new RegExp(config.otlpEndpoint), /localhost/],
+          propagateTraceHeaderCorsUrls: corsUrls,
         }),
       ],
     });
@@ -120,7 +125,7 @@ export function shutdownBrowserTelemetry(): Promise<void> {
   return Promise.resolve();
 }
 
-// Helper function to create spans in browser (fixed attributes type)
+// Helper function to create spans in browser
 export function withBrowserSpan<T>(
   name: string,
   fn: (span: Span) => Promise<T> | T,
@@ -128,7 +133,6 @@ export function withBrowserSpan<T>(
 ): Promise<T> {
   const tracer = getBrowserTracer();
 
-  // Fixed: Handle undefined attributes properly
   const spanOptions = attributes ? { attributes } : {};
   const span = tracer.startSpan(name, spanOptions);
 

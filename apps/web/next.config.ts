@@ -32,11 +32,23 @@ const nextConfig: NextConfig = {
   // Transpile monorepo packages
   transpilePackages: ["@crypto-tracker/ui", "@crypto-tracker/core", "@crypto-tracker/telemetry"],
 
+  // Webpack configuration to help with module resolution
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Help with ESM resolution in server-side code
+      config.resolve.extensionAlias = {
+        ".js": [".js", ".ts"],
+        ".jsx": [".jsx", ".tsx"],
+      };
+    }
+    return config;
+  },
+
   // Environment variables
   env: {
     NEXT_PUBLIC_APP_URL: process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000",
     NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT:
-      process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] || "http://localhost:4318",
+      process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] || "http://localhost:4320",
   },
 
   // Headers for security

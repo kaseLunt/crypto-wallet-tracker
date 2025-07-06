@@ -1,5 +1,5 @@
 // This file MUST be imported first to initialize OpenTelemetry before other modules
-import { initializeTelemetry } from "@crypto-tracker/telemetry";
+import { initializeTelemetry } from "@crypto-tracker/telemetry/node";
 
 // Initialize telemetry for the GraphQL Gateway
 export const telemetry = initializeTelemetry({

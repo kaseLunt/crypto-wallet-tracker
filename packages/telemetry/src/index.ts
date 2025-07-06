@@ -1,10 +1,11 @@
-// Main exports
+// Main exports - only export what's needed
 export * from "./config.js";
 export * from "./constants.js";
-export * from "./instrumentations.js";
-export * from "./node.js";
 export * from "./metrics.js";
 export * from "./tracing.js";
+
+// Conditional exports for different environments
+export type { TelemetrySDKConfig } from "./node.js";
 
 // Re-export commonly used OpenTelemetry APIs
 export {

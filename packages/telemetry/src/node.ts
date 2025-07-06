@@ -7,6 +7,7 @@ import { NodeSDK, type NodeSDKConfiguration } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor, ConsoleSpanExporter } from "@opentelemetry/sdk-trace-base";
 
 import { metrics, trace } from "@opentelemetry/api";
+// Use more explicit imports
 import {
   DEFAULT_CONFIG,
   type TelemetryConfig,
