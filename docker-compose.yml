@@ -24,6 +24,31 @@ services:
     networks:
       - crypto-network
 
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:latest
+    container_name: crypto-tracker-otel-collector
+    command: [ "--config=/etc/otel-collector-config.yaml" ]
+    volumes:
+      - ./docker/config/otel-collector.yaml:/etc/otel-collector-config.yaml
+    ports:
+      - "4317:4317"   # OTLP gRPC receiver
+      - "4318:4318"   # OTLP HTTP receiver
+      - "8889:8889"   # Prometheus metrics
+    depends_on:
+      - jaeger
+    networks:
+      - crypto-network
+
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    container_name: crypto-tracker-jaeger
+    ports:
+      - "16686:16686"
+      - "14268:14268"
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    networks:
+      - crypto-network
   # Redis Stack - Caching + Time Series + JSON + Search
   redis:
     image: redis/redis-stack:latest
@@ -74,6 +99,7 @@ services:
       start_period: 30s
     networks:
       - crypto-network
+
 
   # pgAdmin - Database UI
   pgadmin:

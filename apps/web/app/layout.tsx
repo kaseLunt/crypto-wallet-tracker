@@ -1,7 +1,9 @@
+// FILE: apps/web/app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import type React from "react";
+import { TelemetryProvider } from "./telemetry-provider";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -53,7 +55,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className={inter.variable}>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="font-sans antialiased">
+        <TelemetryProvider>{children}</TelemetryProvider>
+      </body>
     </html>
   );
 }

@@ -17,11 +17,11 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "raw.githubusercontent.com", // For token icons
+        hostname: "raw.githubusercontent.com",
       },
       {
         protocol: "https",
-        hostname: "assets.coingecko.com", // For CoinGecko images
+        hostname: "assets.coingecko.com",
       },
     ],
   },
@@ -30,17 +30,18 @@ const nextConfig: NextConfig = {
   output: "standalone",
 
   // Transpile monorepo packages
-  transpilePackages: ["@crypto-tracker/ui", "@crypto-tracker/core"],
+  transpilePackages: ["@crypto-tracker/ui", "@crypto-tracker/core", "@crypto-tracker/telemetry"],
 
   // Environment variables
   env: {
     NEXT_PUBLIC_APP_URL: process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000",
+    NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT:
+      process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] || "http://localhost:4318",
   },
 
   // Headers for security
-  // biome-ignore lint/suspicious/useAwait: Next.js requires this function to be async.
-  async headers() {
-    return [
+  headers() {
+    return Promise.resolve([
       {
         source: "/:path*",
         headers: [
@@ -66,7 +67,7 @@ const nextConfig: NextConfig = {
           },
         ],
       },
-    ];
+    ]);
   },
 };
 

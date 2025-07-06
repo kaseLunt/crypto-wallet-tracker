@@ -5,13 +5,16 @@
     "paths": {
       "@/*": ["./*"],
       "@crypto-tracker/ui": ["../../packages/ui/src"],
-      "@crypto-tracker/core": ["../../packages/core/src"]
+      "@crypto-tracker/core": ["../../packages/core/src"],
+      "@crypto-tracker/telemetry": ["../../packages/telemetry/src"]
     },
     "plugins": [
       {
         "name": "next"
       }
-    ]
+    ],
+    "lib": ["dom", "dom.iterable", "es6", "es2022"],
+    "types": ["node"]
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]

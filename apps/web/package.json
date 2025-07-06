@@ -15,6 +15,7 @@
     "clean": "rm -rf .next node_modules"
   },
   "dependencies": {
+    "@crypto-tracker/telemetry": "workspace:*",
     "next": "^15.0.3",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
