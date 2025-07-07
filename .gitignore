@@ -13,7 +13,13 @@ node_modules
 .env.production.local
 
 # Testing
-coverage
+
+# WebStorm
+.idea/
+*.iml
+*.iws
+packages/ui/.storybook/*.jscoverage
+
 
 # Turbo
 .turbo
