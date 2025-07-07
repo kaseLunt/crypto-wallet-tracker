@@ -11,9 +11,7 @@
     },
     "./styles": "./src/styles/globals.css"
   },
-  "sideEffects": [
-    "**/*.css"
-  ],
+  "sideEffects": ["**/*.css"],
   "scripts": {
     "type-check": "tsc --noEmit",
     "type-check:watch": "tsc --noEmit --watch",
@@ -45,8 +43,5 @@
     "@types/react-dom": "^19.0.0",
     "typescript": "5.8.2"
   },
-  "files": [
-    "src",
-    "dist"
-  ]
+  "files": ["src", "dist"]
 }
