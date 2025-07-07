@@ -25,7 +25,7 @@ export function TelemetryProvider({ children }: TelemetryProviderProps) {
           serviceVersion: "0.0.1",
           environment: process.env.NODE_ENV ?? "development",
           otlpEndpoint:
-            process.env.NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://localhost:4320",
+            process.env.NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://localhost:4318",
           enableConsoleExporter: process.env.NODE_ENV === "development",
           attributes: {
             "service.type": "web-client",

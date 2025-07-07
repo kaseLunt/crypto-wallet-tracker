@@ -48,7 +48,7 @@ const nextConfig: NextConfig = {
   env: {
     NEXT_PUBLIC_APP_URL: process.env["NEXT_PUBLIC_APP_URL"] || "http://localhost:3000",
     NEXT_PUBLIC_OTEL_EXPORTER_OTLP_ENDPOINT:
-      process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] || "http://localhost:4320",
+      process.env["OTEL_EXPORTER_OTLP_ENDPOINT"] || "http://localhost:4318",
   },
 
   // Headers for security

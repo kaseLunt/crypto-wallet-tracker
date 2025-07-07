@@ -3,7 +3,7 @@ export async function register() {
     console.log("[OTEL Server] Initializing server-side telemetry...");
 
     // Use explicit IP instead of localhost for Docker networking
-    const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://127.0.0.1:4320";
+    const otlpEndpoint = process.env.OTEL_EXPORTER_OTLP_ENDPOINT ?? "http://127.0.0.1:4318";
     console.log("[OTEL Server] OTLP Endpoint:", otlpEndpoint);
 
     try {
