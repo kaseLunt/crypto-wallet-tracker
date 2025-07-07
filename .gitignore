@@ -98,3 +98,5 @@ Thumbs.db
 # Prisma
 # Keep migrations but not the database
 prisma/migrations/*/migration_log.json
+*storybook.log
+storybook-static
