@@ -5,9 +5,12 @@ generates:
       - typescript
       - typescript-resolvers
     config:
-      contextType: ../context#GraphQLContext
+      contextType: ../types#GraphQLContext
       useIndexSignature: true
       enumsAsTypes: true
+      useTypeImports: true
+      extensionsToInclude: ['.js']
+      emitLegacyCommonJSImports: false
       scalars:
         DateTime: string
         BigInt: string
