@@ -1,0 +1,66 @@
+syntax = "proto3";
+
+package crypto_tracker.indexer.v1;
+
+option go_package = "github.com/crypto-tracker/proto/gen/go/indexer/v1;indexerv1";
+
+import "google/protobuf/timestamp.proto";
+
+service IndexerService {
+  rpc GetSyncStatus(GetSyncStatusRequest) returns (GetSyncStatusResponse);
+  rpc GetBlockHeight(GetBlockHeightRequest) returns (GetBlockHeightResponse);
+  rpc StreamEvents(StreamEventsRequest) returns (stream IndexerEvent);
+}
+
+message GetSyncStatusRequest {
+  string chain = 1;
+}
+
+message GetSyncStatusResponse {
+  string chain = 1;
+  uint64 current_block = 2;
+  uint64 latest_block = 3;
+  bool is_syncing = 4;
+  google.protobuf.Timestamp last_sync_time = 5;
+}
+
+message GetBlockHeightRequest {
+  string chain = 1;
+}
+
+message GetBlockHeightResponse {
+  string chain = 1;
+  uint64 block_height = 2;
+}
+
+message StreamEventsRequest {
+  repeated string chains = 1;
+  repeated string event_types = 2;
+}
+
+message IndexerEvent {
+  string id = 1;
+  string chain = 2;
+  string event_type = 3;
+  google.protobuf.Timestamp timestamp = 4;
+  oneof event {
+    TransactionEvent transaction = 5;
+    TokenTransferEvent token_transfer = 6;
+  }
+}
+
+message TransactionEvent {
+  string hash = 1;
+  string from = 2;
+  string to = 3;
+  string value = 4;
+  uint64 block_number = 5;
+}
+
+message TokenTransferEvent {
+  string transaction_hash = 1;
+  string token_address = 2;
+  string from = 3;
+  string to = 4;
+  string amount = 5;
+}
