@@ -1,0 +1,20 @@
+version: v1
+managed:
+  enabled: true
+  go_package_prefix:
+    default: github.com/crypto-tracker/proto
+plugins:
+  # Go code generation
+  - plugin: go
+    out: gen/go
+    opt: paths=source_relative
+  - plugin: go-grpc
+    out: gen/go
+    opt: paths=source_relative
+  # TypeScript code generation for other services
+  - plugin: es
+    out: gen/ts
+    opt: target=ts
+  - plugin: connect-es
+    out: gen/ts
+    opt: target=ts
