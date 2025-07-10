@@ -34,7 +34,20 @@
     "overrides": {
       "@types/node": "^22.5.5",
       "typescript": "5.8.2"
-    }
+    },
+    "ignoredBuiltDependencies": [
+      "@biomejs/biome",
+      "esbuild"
+    ],
+    "onlyBuiltDependencies": [
+      "@prisma/client",
+      "@prisma/engines",
+      "@tailwindcss/oxide",
+      "core-js-pure",
+      "prisma",
+      "protobufjs",
+      "sharp"
+    ]
   },
   "devDependencies": {
     "@biomejs/biome": "1.9.4",
