@@ -1,4 +1,7 @@
 package events
+import (
+    "time"
+)
 
 const (
     // Event subjects

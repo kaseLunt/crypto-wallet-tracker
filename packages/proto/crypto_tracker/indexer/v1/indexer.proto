@@ -9,7 +9,11 @@ import "google/protobuf/timestamp.proto";
 service IndexerService {
   rpc GetSyncStatus(GetSyncStatusRequest) returns (GetSyncStatusResponse);
   rpc GetBlockHeight(GetBlockHeightRequest) returns (GetBlockHeightResponse);
-  rpc StreamEvents(StreamEventsRequest) returns (stream IndexerEvent);
+  rpc StreamEvents(StreamEventsRequest) returns (stream StreamEventsResponse);
+}
+
+message StreamEventsResponse {
+  IndexerEvent event = 1;
 }
 
 message GetSyncStatusRequest {
