@@ -99,8 +99,7 @@ services:
   # Indexer - gRPC service for indexing blockchain data
   indexer:
     build:
-      context: .
-      dockerfile: services/indexer/Dockerfile
+      context: ./services/indexer
     container_name: crypto-tracker-indexer
     restart: unless-stopped
     ports:
