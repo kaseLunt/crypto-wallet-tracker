@@ -2,24 +2,24 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
-	"log"
-	"time"
+    "context"
+    "encoding/json"
+    "log"
+    "time"
 
-	"github.com/crypto-tracker/indexer/internal/events"
-	"github.com/crypto-tracker/indexer/internal/indexer"
-	"github.com/crypto-tracker/indexer/internal/telemetry"
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/nats-io/nats.go"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
+    "github.com/crypto-tracker/indexer/internal/events"
+    "github.com/crypto-tracker/indexer/internal/indexer"
+    "github.com/crypto-tracker/indexer/internal/telemetry"
+    pgx "github.com/jackc/pgx/v5"                // Alias pgx package
+    pgxpool "github.com/jackc/pgx/v5/pgxpool"    // Alias pgxpool package (removes duplicates)
+    "github.com/nats-io/nats.go"
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/attribute"
 )
 
-// ... (main function code)
+// main function initializes the indexer service, connects to NATS and PostgreSQL
 func main() {
-	cfg, err := LoadConfig()
+	cfg, err := indexer.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
@@ -91,22 +91,30 @@ func main() {
 		}
 
 		if len(transactions) > 0 {
-			_, err := dbpool.CopyFrom(
-				ctx,
-				pgx.Identifier{"crypto", "transactions"},
-				[]string{"id", "time", "hash", "chain", "from_address", "to_address", "amount", "block_number", "status", "type"},
-				indexer.ToCopyFromRows(transactions),
-			)
-			if err != nil {
-				log.Printf("ERROR: failed to insert transactions: %v", err)
-			} else {
-				log.Printf("Successfully inserted %d transactions.", len(transactions))
-				for _, txn := range transactions {
-					event, _ := json.Marshal(events.TransactionFoundEvent{Chain: string(txn.Chain), Hash: txn.Hash})
-					nc.Publish(events.SubjectTransactionFound, event)
-				}
-			}
-		}
-		span.End()
+            _, err := dbpool.CopyFrom(
+                ctx,
+                pgx.Identifier{"crypto", "transactions"},
+                []string{"id", "time", "hash", "chain", "from_address", "to_address", "amount", "block_number", "status", "type"},
+                pgx.CopyFromRows(indexer.ToCopyFromRows(transactions)),
+            )
+            if err != nil {
+                log.Printf("ERROR: failed to insert transactions: %v", err)
+                span.RecordError(err)  // Optional: record in OpenTelemetry span if desired
+            } else {
+                log.Printf("Successfully inserted %d transactions.", len(transactions))
+                for _, txn := range transactions {
+                    event, errMarshal := json.Marshal(events.TransactionFoundEvent{Chain: string(txn.Chain), Hash: txn.Hash})
+                    if errMarshal != nil {
+                        log.Printf("ERROR: failed to marshal event for txn %s: %v", txn.Hash, errMarshal)
+                        continue
+                    }
+                    errPublish := nc.Publish(events.SubjectTransactionFound, event)
+                    if errPublish != nil {
+                        log.Printf("ERROR: failed to publish event for txn %s: %v", txn.Hash, errPublish)
+                        // Optionally continue or break based on your error handling policy
+                    }
+                }
+            }
+        }
 	}
 }
