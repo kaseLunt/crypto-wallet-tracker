@@ -2,20 +2,21 @@ package indexer
 
 import (
 	"context"
-	"errors"
+	"errors"       // For errors.Is
 	"log"
 	"math/big"
-	"net/http" // For http.Client
+	"net/http"     // NEW: For http.Client
 	"strings"
 	"time"
 
-	coingecko "github.com/superoo7/go-gecko/v3" // Fixed: gogecko import
+	coingecko "github.com/superoo7/go-gecko/v3"
 	"github.com/crypto-tracker/indexer/internal/models"
 	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
 	"github.com/google/uuid"
+	pgx "github.com/jackc/pgx/v5"       // FIXED: Aliased import for pgx (use pgx.ErrNoRows)
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -28,7 +29,7 @@ var meter = otel.Meter("indexer.chain")
 
 type EthereumIndexer struct {
 	client    *ethclient.Client
-	coinGecko *coingecko.Client // Fixed: gogecko client type
+	coinGecko *coingecko.Client
 }
 
 func NewEthereumIndexer(rpcURL string, coinGeckoAPIKey string) (*EthereumIndexer, error) {
@@ -37,7 +38,6 @@ func NewEthereumIndexer(rpcURL string, coinGeckoAPIKey string) (*EthereumIndexer
 		return nil, err
 	}
 
-	// Fixed: Create http.Client with timeout, then init gogecko client
 	httpClient := &http.Client{
 		Timeout: time.Second * 10,
 	}
@@ -58,7 +58,7 @@ func (ei *EthereumIndexer) GetLatestBlock(ctx context.Context) (uint64, error) {
 }
 
 func (ei *EthereumIndexer) ProcessBlocks(ctx context.Context, start, end uint64, wallets []models.Wallet, tokenMap map[string]uuid.UUID) ([]models.Transaction, error) {
-	ctx, span := tracer.Start(ctx, "ProcessBlocks", trace.WithAttributes( // Fixed: trace.WithAttributes
+	ctx, span := tracer.Start(ctx, "ProcessBlocks", trace.WithAttributes(
 		attribute.Int64("start_block", int64(start)),
 		attribute.Int64("end_block", int64(end)),
 		attribute.Int("wallet_count", len(wallets)),
@@ -77,7 +77,6 @@ func (ei *EthereumIndexer) ProcessBlocks(ctx context.Context, start, end uint64,
 
 	blockTimes := make(map[uint64]time.Time)
 
-	// Process native transfers
 	for i := start; i <= end; i++ {
 		block, err := ei.client.BlockByNumber(ctx, big.NewInt(int64(i)))
 		if err != nil {
@@ -105,7 +104,7 @@ func (ei *EthereumIndexer) ProcessBlocks(ctx context.Context, start, end uint64,
 			var ok bool
 			if walletID, ok = walletMap[fromLower]; !ok {
 				if walletID, ok = walletMap[toLower]; !ok {
-					continue // skip if not for monitored wallet
+					continue
 				}
 			}
 
@@ -119,7 +118,7 @@ func (ei *EthereumIndexer) ProcessBlocks(ctx context.Context, start, end uint64,
 				Chain:       models.ChainEthereum,
 				FromAddress: from.Hex(),
 				ToAddress:   toStr,
-				TokenID:     nil, // native
+				TokenID:     nil,
 				Amount:      tx.Value().String(),
 				BlockNumber: int64(i),
 				Status:      "CONFIRMED",
@@ -130,7 +129,6 @@ func (ei *EthereumIndexer) ProcessBlocks(ctx context.Context, start, end uint64,
 		}
 	}
 
-	// Process ERC-20 transfers via logs
 	query := ethereum.FilterQuery{
 		FromBlock: big.NewInt(int64(start)),
 		ToBlock:   big.NewInt(int64(end)),
@@ -139,7 +137,7 @@ func (ei *EthereumIndexer) ProcessBlocks(ctx context.Context, start, end uint64,
 
 	logs, err := ei.client.FilterLogs(ctx, query)
 	if err != nil {
-		return transactions, err // return native txns even if logs fail
+		return transactions, err
 	}
 
 	for _, l := range logs {
@@ -194,32 +192,44 @@ func (ei *EthereumIndexer) ProcessBlocks(ctx context.Context, start, end uint64,
 	return transactions, nil
 }
 
-// Reorg Handling
+// FIXED VERSION: Reorg Handling (with import fix)
 func (ei *EthereumIndexer) HandleReorg(ctx context.Context, db *pgxpool.Pool) (bool, error) {
 	ctx, span := tracer.Start(ctx, "HandleReorg")
 	defer span.End()
 
-	var maxBlock int64
+	// Use a pointer (*int64) to handle possible NULL from MAX()
+	var maxBlock *int64
 	err := db.QueryRow(ctx, "SELECT MAX(block_number) FROM crypto.transactions WHERE chain = 'ETHEREUM'").Scan(&maxBlock)
 	if err != nil {
+		// If no rows, pgx returns ErrNoRows—handle it gracefully instead of erroring
+		if errors.Is(err, pgx.ErrNoRows) {  // FIXED: Use aliased pgx.ErrNoRows
+			log.Println("No transactions found, skipping reorg check")
+			return false, nil
+		}
 		return false, err
 	}
 
-	if maxBlock == 0 {
+	// If maxBlock is nil (NULL from DB), treat as 0 (no reorg needed)
+	if maxBlock == nil {
+		log.Println("No block data found, skipping reorg check")
 		return false, nil
 	}
 
-	// Get block hash from chain
-	chainBlock, err := ei.client.BlockByNumber(ctx, big.NewInt(maxBlock))
+	// Rest of your code (unchanged, but now safe because maxBlock is guaranteed non-nil)
+	header, err := ei.client.HeaderByNumber(ctx, big.NewInt(*maxBlock))
 	if err != nil {
 		return false, err
 	}
-	chainHash := chainBlock.Hash().Hex()
+	chainHash := header.Hash().Hex()
 
-	// Get stored hash (use a transaction from that block)
 	var storedHash string
-	err = db.QueryRow(ctx, "SELECT hash FROM crypto.transactions WHERE block_number = $1 AND chain = 'ETHEREUM' LIMIT 1", maxBlock).Scan(&storedHash)
+	err = db.QueryRow(ctx, "SELECT hash FROM crypto.transactions WHERE block_number = $1 AND chain = 'ETHEREUM' LIMIT 1", *maxBlock).Scan(&storedHash)
 	if err != nil {
+		// Handle no rows gracefully (no transactions at this block = no reorg)
+		if errors.Is(err, pgx.ErrNoRows) {  // FIXED: Use aliased pgx.ErrNoRows
+			log.Printf("No transactions at block %d, skipping reorg check", *maxBlock)
+			return false, nil
+		}
 		return false, err
 	}
 
@@ -228,11 +238,11 @@ func (ei *EthereumIndexer) HandleReorg(ctx context.Context, db *pgxpool.Pool) (b
 	}
 
 	if chainHash != storedHash { // Simple check; in production, compare full block hash chain
-		log.Printf("Reorg detected at block %d: chain hash %s != stored %s", maxBlock, chainHash, storedHash)
-		span.AddEvent("reorg_detected", trace.WithAttributes(attribute.Int64("block", maxBlock))) // Fixed: trace.WithAttributes
+		log.Printf("Reorg detected at block %d: chain hash %s != stored %s", *maxBlock, chainHash, storedHash)
+		span.AddEvent("reorg_detected", trace.WithAttributes(attribute.Int64("block", *maxBlock)))
 
 		// Rollback recent blocks (e.g., last 12 for safety)
-		rollbackTo := maxBlock - 12
+		rollbackTo := *maxBlock - 12
 		if rollbackTo < 0 {
 			rollbackTo = 0
 		}
@@ -241,40 +251,37 @@ func (ei *EthereumIndexer) HandleReorg(ctx context.Context, db *pgxpool.Pool) (b
 			return true, err
 		}
 		log.Printf("Rolled back to block %d", rollbackTo)
-		span.AddEvent("reorg_rollback", trace.WithAttributes(attribute.Int64("rollback_to", rollbackTo))) // Fixed: trace.WithAttributes
+		span.AddEvent("reorg_rollback", trace.WithAttributes(attribute.Int64("rollback_to", rollbackTo)))
 		return true, nil
 	}
 
 	return false, nil
 }
 
-// Hybrid Integration Helpers
-// GetBalance: Use go-ethereum for wallet balance (Viem-like)
 func (ei *EthereumIndexer) GetBalance(ctx context.Context, address string) (*big.Int, error) {
 	return ei.client.BalanceAt(ctx, common.HexToAddress(address), nil)
 }
 
-// GetPrice: Real CoinGecko integration (using gogecko)
 func (ei *EthereumIndexer) GetPrice(ctx context.Context, token string) (float64, error) {
-	ctx, span := tracer.Start(ctx, "GetPrice", trace.WithAttributes(attribute.String("token", token))) // Fixed: trace.WithAttributes
+	ctx, span := tracer.Start(ctx, "GetPrice", trace.WithAttributes(attribute.String("token", token)))
 	defer span.End()
 
 	priceDuration, _ := meter.Float64Histogram("price.fetch.duration", metric.WithDescription("Time to fetch price from CoinGecko"), metric.WithUnit("ms"))
 
 	startTime := time.Now()
-	data, err := ei.coinGecko.SimplePrice([]string{token}, []string{"usd"}) // Fixed: gogecko SimplePrice signature (slices)
+	data, err := ei.coinGecko.SimplePrice([]string{token}, []string{"usd"})
 	if err != nil {
 		span.RecordError(err)
 		return 0, err
 	}
 
-	priceFloat32, ok := (*data)[token]["usd"] // Fixed: Access lowercase "usd" key; it's float32
+	priceFloat32, ok := (*data)[token]["usd"]
 	if !ok {
 		err := errors.New("price not found for token")
 		span.RecordError(err)
 		return 0, err
 	}
-	price := float64(priceFloat32) // Fixed: Convert float32 to float64
+	price := float64(priceFloat32)
 
 	duration := time.Since(startTime).Milliseconds()
 	priceDuration.Record(ctx, float64(duration), metric.WithAttributes(attribute.String("token", token)))
@@ -282,18 +289,17 @@ func (ei *EthereumIndexer) GetPrice(ctx context.Context, token string) (float64,
 	return price, nil
 }
 
-// UpdateWalletSnapshot: Store USD balance snapshot in DB
 func (ei *EthereumIndexer) UpdateWalletSnapshot(ctx context.Context, db *pgxpool.Pool, wallet models.Wallet, balance *big.Int, usdPrice float64) error {
 	ctx, span := tracer.Start(ctx, "UpdateWalletSnapshot")
 	defer span.End()
 
-	usdValue, _ := new(big.Float).Mul(new(big.Float).SetInt(balance), big.NewFloat(usdPrice)).Float64() // Fixed: assignment mismatch by ignoring second value
+	usdValue, _ := new(big.Float).Mul(new(big.Float).SetInt(balance), big.NewFloat(usdPrice)).Float64()
 
 	_, err := db.Exec(ctx,
 		`INSERT INTO analytics.wallet_snapshots (id, time, wallet_id, total_value_usd, token_count, metadata)
          VALUES ($1, $2, $3, $4, $5, $6)
          ON CONFLICT (time, wallet_id) DO UPDATE SET total_value_usd = EXCLUDED.total_value_usd`,
-		uuid.New(), time.Now(), wallet.ID, usdValue, 1, "{}") // token_count=1 for ETH
+		uuid.New(), time.Now(), wallet.ID, usdValue, 1, "{}")
 	if err != nil {
 		span.RecordError(err)
 		return err
