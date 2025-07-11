@@ -1,4 +1,3 @@
-// Path: services/indexer/internal/indexer/chain.go
 package indexer
 
 import (
@@ -58,18 +57,20 @@ func (ei *EthereumIndexer) ProcessBlocks(ctx context.Context, start, end uint64)
 				to = tx.To().Hex()
 			}
 
-			txn := models.Transaction{
-				ID:          uuid.New(),
-				Time:        time.Unix(int64(block.Time()), 0),
-				Hash:        tx.Hash().Hex(),
-				Chain:       models.ChainEthereum,
-				FromAddress: from.Hex(),
-				ToAddress:   to,
-				Amount:      tx.Value().String(),
-				BlockNumber: int64(i),
-				Status:      "CONFIRMED",
-				Type:        "TRANSFER",
-			}
+			var txnType = "TRANSFER"
+
+            txn := models.Transaction{
+                ID:          uuid.New(),
+                Time:        time.Unix(int64(block.Time()), 0),
+                Hash:        tx.Hash().Hex(),
+                Chain:       models.ChainEthereum,
+                FromAddress: from.Hex(),
+                ToAddress:   to,
+                Amount:      tx.Value().String(),
+                BlockNumber: int64(i),
+                Status:      "CONFIRMED",
+                Type:        &txnType,
+            }
 			transactions = append(transactions, txn)
 		}
 	}
