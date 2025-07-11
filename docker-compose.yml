@@ -122,7 +122,9 @@ services:
       - crypto-network
     volumes:
       - ./services/indexer:/app
+    working_dir: /app  # Added: Fixes .air.toml location by setting cwd
     command: air -c .air.toml
+
   # pgAdmin - Database UI
   pgadmin:
     image: dpage/pgadmin4:latest
