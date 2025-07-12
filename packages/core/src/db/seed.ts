@@ -1,10 +1,11 @@
+// packages/core/src/db/seed.ts
 import { Chain } from "@prisma/client";
 import { prisma } from "./client.js";
 
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // Seed some base tokens
+  // Seed tokens (unchanged)
   const tokens = await Promise.all([
     prisma.token.upsert({
       where: {
@@ -44,7 +45,7 @@ async function main() {
 
   console.log(`✅ Seeded ${tokens.length} tokens`);
 
-  // Upsert a sample wallet (use upsert instead of create)
+  // NEW: Seed a test wallet
   const wallet = await prisma.wallet.upsert({
     where: {
       address_chain: {
@@ -54,15 +55,33 @@ async function main() {
     },
     update: {
       label: "Demo Wallet",
+      isActive: true,
     },
     create: {
       address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD40",
       chain: Chain.ETHEREUM,
       label: "Demo Wallet",
+      isActive: true,
     },
   });
-
   console.log(`✅ Created/Updated demo wallet: ${wallet.address}`);
+
+  // NEW: Seed a test transaction (for reorg testing)
+  const testTransaction = await prisma.transaction.create({
+    data: {
+      time: new Date(),
+      walletId: wallet.id,
+      hash: "0x_test_transaction_hash",
+      chain: Chain.ETHEREUM,
+      fromAddress: "0x_from",
+      toAddress: "0x_to",
+      amount: "1000000000000000000", // 1 ETH in wei
+      blockNumber: 100, // Arbitrary block for testing
+      status: "CONFIRMED",
+      type: "TRANSFER",
+    },
+  });
+  console.log(`✅ Seeded test transaction: ${testTransaction.hash}`);
 }
 
 main()
