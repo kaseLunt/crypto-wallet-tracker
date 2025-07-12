@@ -26,7 +26,7 @@ FROM golang:1.24-alpine
 
 RUN apk --no-cache add ca-certificates build-base git  # Fixed: Add build deps for Air's runtime builds
 
-WORKDIR /app  # Fixed: Change to /app to match builder (Air expects source here)
+WORKDIR /app
 
 # Copy the pre-built binary from builder
 COPY --from=builder /app/indexer .
@@ -40,4 +40,4 @@ COPY --from=builder /app /app
 # Expose ports
 EXPOSE 8081 50051
 
-CMD ["air", "-c", ".air.toml"]  # Fixed: Use Air config for hot-reloading
+CMD ["air", "-c", ".air.toml"]

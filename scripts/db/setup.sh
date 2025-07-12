@@ -18,6 +18,7 @@ log_step() {
 log_error() {
     echo -e "${RED}✗${NC} $1"
 }
+echo "DATABASE_URL=$DATABASE_URL" && echo "DIRECT_DATABASE_URL=$DIRECT_DATABASE_URL"
 
 echo "🗄️  Database Setup"
 echo "================"
