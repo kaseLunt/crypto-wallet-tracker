@@ -1,5 +1,12 @@
 import type { NextConfig } from "next";
 
+// Define regex literals at the top level
+const IGNORE_WARNING_EXPRESSION = /the request of a dependency is an expression/;
+const IGNORE_WARNING_CRITICAL_DEPENDENCY =
+  /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/;
+const IGNORE_WARNING_MODULE_NOT_FOUND =
+  /Module not found: Can't resolve '@opentelemetry\/exporter-jaeger'/;
+
 const nextConfig: NextConfig = {
   // Enable React Strict Mode
   reactStrictMode: true,
@@ -40,6 +47,21 @@ const nextConfig: NextConfig = {
         ".js": [".js", ".ts"],
         ".jsx": [".jsx", ".tsx"],
       };
+
+      // Externalize OTEL Node-specific modules to avoid bundling issues
+      config.externals = [
+        ...(config.externals || []),
+        "@opentelemetry/exporter-jaeger",
+        "require-in-the-middle",
+      ];
+
+      // Ignore dynamic require warnings for OTEL
+      config.ignoreWarnings = [
+        ...(config.ignoreWarnings || []),
+        IGNORE_WARNING_EXPRESSION,
+        IGNORE_WARNING_CRITICAL_DEPENDENCY,
+        IGNORE_WARNING_MODULE_NOT_FOUND,
+      ];
     }
     return config;
   },

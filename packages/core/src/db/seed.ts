@@ -5,7 +5,7 @@ import { prisma } from "./client.js";
 async function main() {
   console.log("🌱 Seeding database...");
 
-  // Seed tokens (unchanged)
+  // Seed tokens
   const tokens = await Promise.all([
     prisma.token.upsert({
       where: {
@@ -41,32 +41,49 @@ async function main() {
         coingeckoId: "usd-coin",
       },
     }),
+    prisma.token.upsert({
+      where: {
+        contractAddress_chain: {
+          contractAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+          chain: Chain.ETHEREUM,
+        },
+      },
+      update: {},
+      create: {
+        symbol: "USDT",
+        name: "Tether",
+        contractAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+        chain: Chain.ETHEREUM,
+        decimals: 6,
+        coingeckoId: "tether",
+      },
+    }),
   ]);
 
   console.log(`✅ Seeded ${tokens.length} tokens`);
 
-  // NEW: Seed a test wallet
+  // Seed a real test wallet (public address with recent activity for testing)
   const wallet = await prisma.wallet.upsert({
     where: {
       address_chain: {
-        address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD40",
+        address: "0xd2674dA94285660c9b2353131bef2d8211369A4B",
         chain: Chain.ETHEREUM,
       },
     },
     update: {
-      label: "Demo Wallet",
+      label: "Real Test Wallet",
       isActive: true,
     },
     create: {
-      address: "0x742d35Cc6634C0532925a3b844Bc9e7595f2bD40",
+      address: "0xd2674dA94285660c9b2353131bef2d8211369A4B",
       chain: Chain.ETHEREUM,
-      label: "Demo Wallet",
+      label: "Real Test Wallet",
       isActive: true,
     },
   });
-  console.log(`✅ Created/Updated demo wallet: ${wallet.address}`);
+  console.log(`✅ Created/Updated real test wallet: ${wallet.address}`);
 
-  // NEW: Seed a test transaction (for reorg testing)
+  // Seed a test transaction (for reorg testing)
   const testTransaction = await prisma.transaction.create({
     data: {
       time: new Date(),
