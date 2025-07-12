@@ -3,7 +3,6 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "dev": "air -c .air.toml",
     "build": "go build -o dist/indexer ./cmd/indexer",
     "test": "go test ./...",
     "lint": "golangci-lint run",
