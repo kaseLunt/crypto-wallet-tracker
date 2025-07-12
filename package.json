@@ -6,11 +6,9 @@
     "dev:infra": "pnpm docker:start",
     "dev:full": "concurrently --names \"infra,apps\" -c \"bgBlue.bold,bgMagenta.bold\" \"pnpm dev:infra\" \"pnpm dev\"",
     "stop:infra": "pnpm docker:stop",
-
     "build": "turbo run build",
     "test": "turbo run test",
     "test:telemetry": "pnpm --filter @crypto-tracker/telemetry run test",
-
     "type-check": "turbo run type-check",
     "lint": "turbo run lint",
     "lint:fix": "turbo run lint:fix",
@@ -18,7 +16,6 @@
     "format:check": "turbo run format:check",
     "check": "pnpm type-check && pnpm lint && pnpm format:check",
     "check:fix": "pnpm type-check && pnpm lint:fix && pnpm format",
-
     "docker:start": "./docker/scripts/start.sh",
     "docker:stop": "./docker/scripts/stop.sh",
     "docker:reset": "./docker/scripts/reset.sh",
@@ -27,7 +24,6 @@
     "docker:redis-cli": "docker exec -it crypto-tracker-redis redis-cli -a redis",
     "db:setup": "pnpm --filter @crypto-tracker/core run db:push && pnpm --filter @crypto-tracker/core run db:seed",
     "generate": "turbo run codegen db:generate",
-
     "setup": "./scripts/dev/setup.sh",
     "clean": "turbo run clean && rm -rf node_modules",
     "clean:all": "pnpm clean && docker compose down -v && rm -rf docker/data/*"
@@ -67,6 +63,7 @@
     "pnpm": ">=10.0.0"
   },
   "dependencies": {
+    "@opentelemetry/exporter-jaeger": "^2.0.1",
     "concurrently": "^9.2.0"
   }
 }
