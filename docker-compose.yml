@@ -7,14 +7,16 @@ services:
     ports:
       - "5432:5432"
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_DB: ${POSTGRES_DB:-crypto_tracker}
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: crypto_tracker
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256  # New: Enforces scram for host connections (like localhost)
       TS_TUNE_MAX_CONNS: 100
       TS_TUNE_MAX_BG_WORKERS: 8
     volumes:
       - ./docker/data/timescaledb:/var/lib/postgresql/data
       - ./docker/config/timescaledb/init.sql:/docker-entrypoint-initdb.d/001-init.sql:ro
+      - ./docker/config/timescaledb/set_password.sql:/docker-entrypoint-initdb.d/999-set_password.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-crypto_tracker}"]
       interval: 10s
