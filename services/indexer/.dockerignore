@@ -1,9 +1,0 @@
-# Ignore development tools and temp files
-.air.toml
-tmp/
-*.log
-
-# Ignore IDE and OS files
-.vscode/
-.idea/
-.DS_Store

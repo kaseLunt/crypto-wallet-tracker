@@ -321,8 +321,6 @@ docker compose exec -T timescaledb psql -U postgres crypto_tracker < backup.sql
 - [GraphQL Yoga Docs](https://the-guild.dev/graphql/yoga-server)
 - [Prisma Docs](https://www.prisma.io/docs)
 - [TimescaleDB Docs](https://docs.timescale.com)
-- [Go Ethereum Docs](https://geth.ethereum.org/docs)
-- [NATS Docs](https://docs.nats.io)
 - [OpenTelemetry Docs](https://opentelemetry.io/docs)
 
 ## 🤝 Contributing

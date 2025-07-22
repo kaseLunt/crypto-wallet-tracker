@@ -75,58 +75,6 @@ services:
     networks:
       - crypto-network
 
-  # NATS with JetStream - Event streaming
-  nats:
-    image: nats:2.10-alpine
-    container_name: crypto-tracker-nats
-    restart: unless-stopped
-    ports:
-      - "4222:4222"  # Client connections
-      - "8222:8222"  # HTTP monitoring
-      - "6222:6222"  # Cluster routing
-    command: [
-      "-c", "/etc/nats/nats-server.conf"  # Use config file only
-    ]
-    volumes:
-      - ./docker/data/nats:/data
-      - ./docker/config/nats/nats-server.conf:/etc/nats/nats-server.conf:ro
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8222/healthz"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - crypto-network
-  # Indexer - gRPC service for indexing blockchain data
-  indexer:
-    build:
-      context: ./services/indexer
-    container_name: crypto-tracker-indexer
-    restart: unless-stopped
-    ports:
-      - "8081:8081"    # HTTP (health, metrics)
-      - "50051:50051"  # gRPC
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@timescaledb:5432/crypto_tracker
-      - NATS_URL=nats://nats:nats@nats:4222
-      - OTEL_EXPORTER_OTLP_ENDPOINT=jaeger:4317
-      - ETHEREUM_RPC_URL=${ETHEREUM_RPC_URL:-https://eth-mainnet.g.alchemy.com/v2/fGYVA7uOPlYSeptkxcse3}
-      - POLYGON_RPC_URL=${POLYGON_RPC_URL}
-      - ARBITRUM_RPC_URL=${ARBITRUM_RPC_URL}
-      - BASE_RPC_URL=${BASE_RPC_URL}
-    depends_on:
-      timescaledb:
-        condition: service_healthy
-      nats:
-        condition: service_healthy
-    networks:
-      - crypto-network
-    volumes:
-      - ./services/indexer:/app
-    working_dir: /app  # Added: Fixes .air.toml location by setting cwd
-    command: air -c .air.toml
-
   # pgAdmin - Database UI
   pgadmin:
     image: dpage/pgadmin4:latest

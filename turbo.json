@@ -8,21 +8,6 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"],
       "env": ["NODE_ENV"]
     },
-    "@crypto-tracker/indexer#dev": {
-      "cache": false,
-      "persistent": true,
-      "env": ["DATABASE_URL", "NATS_URL", "ETHEREUM_RPC_URL"]
-    },
-    "@crypto-tracker/indexer#build": {
-      "inputs": ["$TURBO_DEFAULT$", ".env*"],
-      "outputs": ["dist/**"],
-      "env": ["CGO_ENABLED"]
-    },
-    "@crypto-tracker/proto#generate": {
-      "inputs": ["**/*.proto", "buf.gen.yaml"],
-      "outputs": ["gen/**"],
-      "cache": true
-    },
     "codegen": {
       "inputs": ["src/schema/**/*.graphql", "codegen.yml"],
       "outputs": ["src/generated/**"],
